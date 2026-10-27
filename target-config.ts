@@ -63,15 +63,18 @@ export interface TargetGitHubAuth {
 
 export type GhRunner = (
   args: string[],
+  env?: Record<string, string | undefined>,
 ) => {
   status: number | null;
   stdout: string;
   stderr: string;
 };
 
-const defaultGhRunner: GhRunner = (args) => {
+const defaultGhRunner: GhRunner = (args, customEnv) => {
+  const env = customEnv ? { ...process.env, ...customEnv } : process.env;
   const res = spawnSync("gh", args, {
     encoding: "utf-8",
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
   return {
@@ -124,7 +127,7 @@ export function resolveGitHubAuth(
     source = "env:GITHUB_TOKEN";
   } else {
     try {
-      const tokenRes = runner(["auth", "token"]);
+      const tokenRes = runner(["auth", "token"], env);
       if (tokenRes.status === 0 && tokenRes.stdout.trim()) {
         token = tokenRes.stdout.trim();
         source = "gh:cli";
@@ -146,7 +149,7 @@ export function resolveGitHubAuth(
 
   if (!account) {
     try {
-      const apiRes = runner(["api", "user", "-q", ".login"]);
+      const apiRes = runner(["api", "user", "-q", ".login"], env);
       if (apiRes.status === 0 && apiRes.stdout.trim()) {
         account = apiRes.stdout.trim();
       }
@@ -157,7 +160,7 @@ export function resolveGitHubAuth(
 
   if (!account) {
     try {
-      const statusRes = runner(["auth", "status"]);
+      const statusRes = runner(["auth", "status"], env);
       const combined = (statusRes.stdout || "") + "\n" + (statusRes.stderr || "");
       const parsed = parseActiveAccountFromAuthStatus(combined);
       if (parsed) {
@@ -175,6 +178,26 @@ export function resolveGitHubAuth(
   });
 }
 
+function readGitConfig(
+  runner: GitRunner,
+  repoPath: string,
+  key: string,
+): string | undefined {
+  try {
+    const localRes = runner(["config", "--local", key], repoPath);
+    if (localRes.status === 0 && localRes.stdout.trim()) {
+      return localRes.stdout.trim();
+    }
+    const globalRes = runner(["config", "--global", key], repoPath);
+    if (globalRes.status === 0 && globalRes.stdout.trim()) {
+      return globalRes.stdout.trim();
+    }
+  } catch {
+    // Ignore
+  }
+  return undefined;
+}
+
 /**
  * Resolves Git identity (user.name and user.email):
  * 1. Checks explicit GIT_USER_NAME / GIT_USER_EMAIL env vars
@@ -188,40 +211,10 @@ export function resolveGitIdentity(
   const env = options.env ?? process.env;
   const runner = options.gitRunner ?? defaultGitRunner;
 
-  let name = env.GIT_USER_NAME?.trim() || undefined;
-  let email = env.GIT_USER_EMAIL?.trim() || undefined;
-
-  if (!name) {
-    try {
-      const localRes = runner(["config", "--local", "user.name"], repoPath);
-      if (localRes.status === 0 && localRes.stdout.trim()) {
-        name = localRes.stdout.trim();
-      } else {
-        const globalRes = runner(["config", "--global", "user.name"], repoPath);
-        if (globalRes.status === 0 && globalRes.stdout.trim()) {
-          name = globalRes.stdout.trim();
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  if (!email) {
-    try {
-      const localRes = runner(["config", "--local", "user.email"], repoPath);
-      if (localRes.status === 0 && localRes.stdout.trim()) {
-        email = localRes.stdout.trim();
-      } else {
-        const globalRes = runner(["config", "--global", "user.email"], repoPath);
-        if (globalRes.status === 0 && globalRes.stdout.trim()) {
-          email = globalRes.stdout.trim();
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
+  const name =
+    env.GIT_USER_NAME?.trim() || readGitConfig(runner, repoPath, "user.name");
+  const email =
+    env.GIT_USER_EMAIL?.trim() || readGitConfig(runner, repoPath, "user.email");
 
   return Object.freeze({ name, email });
 }
@@ -334,7 +327,7 @@ export function detectTargetConfig(
   const fileExists = options.fileExists ?? options.fsExists ?? existsSync;
 
   const techStack = detectTechStack(repoPath, fileExists);
-  const verifyCommand = resolveVerifyCommand(repoPath, techStack, fileExists);
+  const verifyCommand = resolveVerifyCommand(techStack);
 
   const baseBranch = resolveBaseBranch(repoPath, {
     gitRunner: options.gitRunner,
@@ -403,11 +396,15 @@ export function detectTechStack(
  * Resolves the canonical verification command for the detected tech stack.
  */
 export function resolveVerifyCommand(
-  repoPath: string,
-  techStack: TechStack,
-  fileExists: (path: string) => boolean = existsSync,
+  techStackOrRepoPath: TechStack | string,
+  maybeStack?: TechStack,
 ): string {
-  switch (techStack) {
+  const stack: TechStack =
+    typeof maybeStack === "string"
+      ? maybeStack
+      : (techStackOrRepoPath as TechStack);
+
+  switch (stack) {
     case "maven":
       return "./mvnw test-compile && ./mvnw test";
     case "gradle":

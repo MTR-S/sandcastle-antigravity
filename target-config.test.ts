@@ -25,7 +25,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "maven");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "./mvnw test-compile && ./mvnw test");
     });
 
@@ -36,7 +36,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "maven");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "./mvnw test-compile && ./mvnw test");
     });
 
@@ -47,7 +47,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "gradle");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "./gradlew test");
     });
 
@@ -58,7 +58,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "gradle");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "./gradlew test");
     });
 
@@ -69,7 +69,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "node");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "npm test");
     });
 
@@ -80,7 +80,7 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       const stack = detectTechStack("/repo", fileExists);
       assert.equal(stack, "unknown");
 
-      const cmd = resolveVerifyCommand("/repo", stack, fileExists);
+      const cmd = resolveVerifyCommand(stack);
       assert.equal(cmd, "");
     });
   });
