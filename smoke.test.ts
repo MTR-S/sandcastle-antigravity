@@ -9,6 +9,7 @@ import {
   formatOAuthPayloadForContainer,
 } from "./auth-preflight.ts";
 import { antigravity, parseAntigravityStreamLine } from "./antigravity.ts";
+import { getSandboxEnv, getSandboxMounts } from "./docker-config.ts";
 
 describe("Orchestrator End-to-End Containerized Smoke Test", () => {
   // Ensure host GEMINI_API_KEY is not forwarded or leaked into the smoke tests
@@ -16,8 +17,12 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
 
   const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
   const imageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
-  const testEnv = {
-    GH_TOKEN: "smoke-gh-token-test",
+  const testEnv: Record<string, string> = {
+    ...getSandboxEnv({
+      GH_TOKEN: "smoke-gh-token-test",
+      GIT_USER_NAME: "Dynamic Sandcastle Agent",
+      GIT_USER_EMAIL: "agent@sandcastle-dynamic.org",
+    }),
   };
 
   test("executes inside containerized sandbox, confirming tool execution and clean exit", async () => {
@@ -27,6 +32,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
       sandbox: docker({
         imageName,
         env: testEnv,
+        mounts: [...getSandboxMounts()],
       }),
     });
 
@@ -44,16 +50,22 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
       assert.equal(agyResult.exitCode, 0, `agy --version failed: ${agyResult.stderr}`);
       assert.match(agyResult.stdout, /\d+\.\d+\.\d+/, "agy --version should output semver");
 
-      // 3. Confirm Maven wrapper execution in the mounted worktree
-      const mvnResult = await sandbox.exec("./mvnw -version");
-      assert.equal(mvnResult.exitCode, 0, `./mvnw -version failed: ${mvnResult.stderr}`);
-      assert.match(
-        mvnResult.stdout + mvnResult.stderr,
-        /Apache Maven/,
-        "mvnw should report Apache Maven",
-      );
+      // 3. Confirm build tool execution in the mounted worktree
+      if (existsSync(resolve(sandbox.worktreePath, "mvnw"))) {
+        const mvnResult = await sandbox.exec("./mvnw -version");
+        assert.equal(mvnResult.exitCode, 0, `./mvnw -version failed: ${mvnResult.stderr}`);
+        assert.match(
+          mvnResult.stdout + mvnResult.stderr,
+          /Apache Maven/,
+          "mvnw should report Apache Maven",
+        );
+      } else {
+        const nodeResult = await sandbox.exec("node -v");
+        assert.equal(nodeResult.exitCode, 0, `node -v failed: ${nodeResult.stderr}`);
+        assert.match(nodeResult.stdout, /v22\./, "node -v should report Node 22");
+      }
 
-      // 4. Confirm environment token forwarding
+      // 4. Confirm environment token and dynamic git identity forwarding
       const envResult = await sandbox.exec('sh -c "echo GH=$GH_TOKEN"');
       assert.equal(envResult.exitCode, 0);
       assert.match(
@@ -61,6 +73,33 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
         /GH=smoke-gh-token-test/,
         "Container should receive forwarded authentication tokens",
       );
+
+      const gitUserResult = await sandbox.exec("git config --global user.name");
+      assert.equal(gitUserResult.stdout.trim(), "Dynamic Sandcastle Agent");
+      const gitEmailResult = await sandbox.exec("git config --global user.email");
+      assert.equal(gitEmailResult.stdout.trim(), "agent@sandcastle-dynamic.org");
+
+      // Verify git commit authorship carries the injected identity
+      const commitResult = await sandbox.exec(
+        'git commit --allow-empty -m "Dynamic author test" && git log -1 --format="%an <%ae>"',
+      );
+      assert.equal(commitResult.exitCode, 0, `git commit failed: ${commitResult.stderr}`);
+      assert.match(
+        commitResult.stdout,
+        /Dynamic Sandcastle Agent <agent@sandcastle-dynamic\.org>/,
+        "Git commit created inside container must carry the injected dynamic identity",
+      );
+
+      // Verify mounted host cache directories when configured
+      const mounts = getSandboxMounts();
+      for (const mount of mounts) {
+        const checkResult = await sandbox.exec(`test -d "${mount.sandboxPath}"`);
+        assert.equal(
+          checkResult.exitCode,
+          0,
+          `Expected ${mount.sandboxPath} to be mounted inside container`,
+        );
+      }
 
       // Verify GEMINI_API_KEY is not forwarded
       const geminiResult = await sandbox.exec('sh -c "echo GEMINI=$GEMINI_API_KEY"');
@@ -128,6 +167,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
       sandbox: docker({
         imageName,
         env: testEnv,
+        mounts: [...getSandboxMounts()],
       }),
       agent: mockAgyAgent,
       prompt: "Execute direct run verification in container",
@@ -158,6 +198,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
           SANDCASTLE_OAUTH_PAYLOAD: mockPayload,
           GH_TOKEN: "smoke-gh-token-test",
         },
+        mounts: [...getSandboxMounts()],
       }),
     });
 
@@ -236,6 +277,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
           SANDCASTLE_OAUTH_PAYLOAD: payload,
           GH_TOKEN: "smoke-gh-token-test",
         },
+        mounts: [...getSandboxMounts()],
       }),
     });
 
@@ -294,4 +336,3 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
     }
   });
 });
-

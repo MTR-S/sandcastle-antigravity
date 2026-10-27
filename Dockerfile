@@ -40,10 +40,8 @@ USER ${AGENT_UID}:${AGENT_GID}
 # Install Antigravity CLI
 RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
 
-# Configure git identity and safe directories for container execution
-RUN git config --global user.name "matheus-sortech" && \
-    git config --global user.email "matheus.almeida@sortech.com.br" && \
-    git config --global --add safe.directory '*'
+# Configure safe directories for container execution
+RUN git config --global --add safe.directory '*'
 
 # Configure Antigravity CLI to use clean consumer OAuth defaults
 RUN mkdir -p /home/agent/.gemini/antigravity-cli && \

@@ -36,6 +36,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
 import { runAuthPreflight, formatOAuthPayloadForContainer } from "./auth-preflight.ts";
+import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
 
 const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
 
@@ -88,26 +89,9 @@ const oauthPayload = formatOAuthPayloadForContainer(authResult);
 /**
  * Collect authentication tokens from the environment to forward into the Docker sandbox.
  */
-function getSandboxEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-
-  if (process.env.GH_TOKEN) {
-    env.GH_TOKEN = process.env.GH_TOKEN;
-  }
-  if (process.env.GITHUB_TOKEN) {
-    env.GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-  }
-  if (process.env.SANDCASTLE_LABEL) {
-    env.SANDCASTLE_LABEL = process.env.SANDCASTLE_LABEL;
-  }
-  // Mirror GH_TOKEN <-> GITHUB_TOKEN if only one is present
-  if (env.GH_TOKEN && !env.GITHUB_TOKEN) {
-    env.GITHUB_TOKEN = env.GH_TOKEN;
-  } else if (env.GITHUB_TOKEN && !env.GH_TOKEN) {
-    env.GH_TOKEN = env.GITHUB_TOKEN;
-  }
-
-  return env;
+function getSandboxEnv(): Readonly<Record<string, string>> {
+  // Reads tokens, labels (process.env.SANDCASTLE_LABEL), and git identity
+  return resolveSandboxEnv(process.env);
 }
 
 const sandboxEnv: Record<string, string> = {
@@ -128,26 +112,25 @@ if (PROTECTED_BRANCHES.has(baseBranch)) {
 }
 
 /**
- * Creates a Docker sandbox provider with forwarded API authentication and GitHub tokens.
+ * Resolves prompt template file from .sandcastle/ or repository root.
+ */
+function resolvePromptFile(name: string): string {
+  const inSandcastle = resolve(repoRoot, ".sandcastle", name);
+  if (existsSync(inSandcastle)) {
+    return inSandcastle;
+  }
+  return resolve(repoRoot, name);
+}
+
+/**
+ * Creates a Docker sandbox provider with forwarded API authentication, GitHub tokens, and cache mounts.
  */
 function createSandboxProvider() {
-  const userHome = process.env.USERPROFILE ?? process.env.HOME ?? "";
-  const m2Path = resolve(userHome, ".m2");
-  const mounts = existsSync(m2Path)
-    ? [
-        {
-          hostPath: m2Path,
-          sandboxPath: "/home/agent/.m2",
-        },
-      ]
-    : [];
+  const mounts = [...getSandboxMounts()];
 
   return docker({
     imageName: sandboxImageName,
-    env: {
-      ...sandboxEnv,
-      SANDCASTLE_OAUTH_PAYLOAD: oauthPayload,
-    },
+    env: sandboxEnv,
     mounts,
   });
 }
@@ -201,7 +184,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       effort: "high",
       mode: "plan",
     }),
-    promptFile: resolve(repoRoot, ".sandcastle/plan-prompt.md"),
+    promptFile: resolvePromptFile("plan-prompt.md"),
     // Extract and validate the <plan> JSON into a typed object. Throws
     // StructuredOutputError if the tag is missing, the JSON is malformed, or
     // validation fails — which aborts the loop.
@@ -250,7 +233,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             effort: "high",
             mode: "accept-edits",
           }),
-          promptFile: resolve(repoRoot, ".sandcastle/implement-prompt.md"),
+          promptFile: resolvePromptFile("implement-prompt.md"),
           promptArgs: {
             TASK_ID: issue.id,
             ISSUE_TITLE: issue.title,
@@ -268,7 +251,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 effort: "medium",
                 mode: "accept-edits",
               }),
-              promptFile: resolve(repoRoot, ".sandcastle/review-prompt.md"),
+              promptFile: resolvePromptFile("review-prompt.md"),
               promptArgs: {
                 BRANCH: issue.branch,
                 BASE_BRANCH: baseBranch,
@@ -354,7 +337,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       effort: "high",
       mode: "accept-edits",
     }),
-    promptFile: resolve(repoRoot, ".sandcastle/merge-prompt.md"),
+    promptFile: resolvePromptFile("merge-prompt.md"),
     promptArgs: {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b: string) => `- ${b}`).join("\n"),

@@ -58,10 +58,22 @@ if [ -n "$SANDCASTLE_OAUTH_PAYLOAD" ]; then
   unset SANDCASTLE_OAUTH_PAYLOAD
 fi
 
-# 6. Default command if none provided
+# 6. Dynamic Git identity configuration from environment variables
+if [ -n "$GIT_USER_NAME" ]; then
+  git config --global user.name "$GIT_USER_NAME"
+  export GIT_AUTHOR_NAME="$GIT_USER_NAME"
+  export GIT_COMMITTER_NAME="$GIT_USER_NAME"
+fi
+if [ -n "$GIT_USER_EMAIL" ]; then
+  git config --global user.email "$GIT_USER_EMAIL"
+  export GIT_AUTHOR_EMAIL="$GIT_USER_EMAIL"
+  export GIT_COMMITTER_EMAIL="$GIT_USER_EMAIL"
+fi
+
+# 7. Default command if none provided
 if [ $# -eq 0 ]; then
   set -- sleep infinity
 fi
 
-# 7. Execute container command
+# 8. Execute container command
 exec "$@"

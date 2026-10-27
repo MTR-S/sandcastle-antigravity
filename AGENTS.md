@@ -19,3 +19,18 @@ Always preserve the upstream attribution and MIT copyright notices crediting **M
 - Domain glossary lives in [`CONTEXT.md`](./CONTEXT.md).
 - Architectural decisions live in [`docs/adr/`](./docs/adr/).
 - Product roadmap and ticket specifications live in [`docs/PRD.md`](./docs/PRD.md).
+
+## Agent skills
+
+### Issue tracker
+
+GitHub issues at `MTR-S/sandcastle-antigravity`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo (`CONTEXT.md` / `docs/adr/`). See `docs/agents/domain.md`.
+
