@@ -1,0 +1,35 @@
+{
+  "name": "sandcastle-antigravity",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "author": "MTR-S",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MTR-S/sandcastle-antigravity.git"
+  },
+  "type": "module",
+  "description": "Standalone multi-agent orchestrator for Google Antigravity CLI built on top of @ai-hero/sandcastle by Matt Pocock",
+  "bin": {
+    "sandcastle-agy": "./main.mts"
+  },
+  "scripts": {
+    "build-image": "docker build -t sandcastle-agent -f Dockerfile .",
+    "inspect-image": "docker run --rm --entrypoint sh sandcastle-agent -c \"java -version && agy --version\"",
+    "test": "node --test auth-preflight.test.ts antigravity.test.ts prompts.test.ts docs.test.ts smoke.test.ts",
+    "test:unit": "node --test auth-preflight.test.ts antigravity.test.ts prompts.test.ts docs.test.ts",
+    "test:smoke": "node --test smoke.test.ts",
+    "orchestrate": "tsx main.mts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-hero/sandcastle": "^0.12.0",
+    "@clack/prompts": "^1.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
