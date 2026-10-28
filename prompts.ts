@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { TargetRepoConfig } from "./target-config.ts";
 
 export const PROMPT_FILE_NAMES = [
@@ -41,9 +42,14 @@ export function formatProtectedBranches(branches: readonly string[]): string {
 }
 
 /**
- * Resolves a prompt file from target repository root or .sandcastle directory.
+ * Resolves a prompt file from target repository root or .sandcastle directory,
+ * falling back to the orchestrator package root if absent in the target repo.
  */
 export function resolvePromptFile(name: string, rootDir?: string): string {
+  const packageRoot = typeof __dirname !== "undefined"
+    ? __dirname
+    : fileURLToPath(new URL(".", import.meta.url));
+
   const baseDir = rootDir
     ? resolve(rootDir)
     : (existsSync(".git") ? process.cwd() : resolve(process.cwd(), ".."));
@@ -55,6 +61,17 @@ export function resolvePromptFile(name: string, rootDir?: string): string {
   if (existsSync(sandcastlePath)) {
     return sandcastlePath;
   }
+
+  // Fallback to orchestrator package directory to avoid polluting external target repositories
+  const packageDirectPath = resolve(packageRoot, name);
+  if (existsSync(packageDirectPath)) {
+    return packageDirectPath;
+  }
+  const packageSandcastlePath = resolve(packageRoot, ".sandcastle", name);
+  if (existsSync(packageSandcastlePath)) {
+    return packageSandcastlePath;
+  }
+
   return directPath;
 }
 

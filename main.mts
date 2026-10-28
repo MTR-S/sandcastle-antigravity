@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // ===========================================================================
 // Sandcastle Antigravity Orchestrator (MTR-S/sandcastle-antigravity)
 //
@@ -25,9 +26,10 @@
 // issues are picked up after each round of merges.
 //
 // Usage:
-//   npx tsx .sandcastle/main.mts
-// Or add to package.json:
-//   "scripts": { "sandcastle": "npx tsx .sandcastle/main.mts" }
+//   npx tsx main.mts run [--repo <path>] [--yes]
+//   npx tsx main.mts rescue [--repo <path>]
+//   npx tsx main.mts doctor [--repo <path>]
+//   npx tsx main.mts build-image
 
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
@@ -40,8 +42,21 @@ import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-c
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
+import { parseCliArgs, dispatchCli } from "./cli.ts";
 
-const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
+// ---------------------------------------------------------------------------
+// CLI Argument Parsing & Operations Dispatch (Issue #10)
+// ---------------------------------------------------------------------------
+const parsedCli = parseCliArgs(process.argv);
+
+if (parsedCli.command !== "run") {
+  const exitCode = await dispatchCli(process.argv);
+  process.exit(exitCode);
+}
+
+const repoRoot = parsedCli.repoPath
+  ? resolve(parsedCli.repoPath)
+  : (existsSync(".git") ? process.cwd() : resolve(process.cwd(), ".."));
 
 // Load local environment variables from .sandcastle/.env or .env if present
 for (const envPath of [
@@ -64,6 +79,7 @@ const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targe
 const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env);
 const bannerResult = await runPreRunConfigurationBanner({
   config: initialPreRunConfig,
+  argv: process.argv,
 });
 
 if (bannerResult.action === "cancel") {
@@ -217,7 +233,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       effort: "high",
       mode: "plan",
     }),
-    promptFile: resolvePromptFile("plan-prompt.md"),
+    promptFile: resolvePromptFile("plan-prompt.md", repoRoot),
     promptArgs: buildPromptArgs(targetConfig),
     // Extract and validate the <plan> JSON into a typed object. Throws
     // StructuredOutputError if the tag is missing, the JSON is malformed, or
@@ -267,7 +283,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             effort: "high",
             mode: "accept-edits",
           }),
-          promptFile: resolvePromptFile("implement-prompt.md"),
+          promptFile: resolvePromptFile("implement-prompt.md", repoRoot),
           promptArgs: buildPromptArgs(targetConfig, {
             TASK_ID: issue.id,
             ISSUE_TITLE: issue.title,
@@ -285,7 +301,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 effort: "medium",
                 mode: "accept-edits",
               }),
-              promptFile: resolvePromptFile("review-prompt.md"),
+              promptFile: resolvePromptFile("review-prompt.md", repoRoot),
               promptArgs: buildPromptArgs(targetConfig, {
                 BRANCH: issue.branch,
               }),
@@ -370,7 +386,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       effort: "high",
       mode: "accept-edits",
     }),
-    promptFile: resolvePromptFile("merge-prompt.md"),
+    promptFile: resolvePromptFile("merge-prompt.md", repoRoot),
     promptArgs: buildPromptArgs(targetConfig, {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b: string) => `- ${b}`).join("\n"),
