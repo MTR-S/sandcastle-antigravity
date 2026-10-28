@@ -39,6 +39,7 @@ import { runAuthPreflight, formatOAuthPayloadForContainer } from "./auth-preflig
 import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
+import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
 
 const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
 
@@ -55,9 +56,30 @@ for (const envPath of [
 }
 
 // ---------------------------------------------------------------------------
-// Target Repository Autodetection
+// Target Repository Autodetection & Pre-Run Inspection Gate (Issue #9)
 // ---------------------------------------------------------------------------
 const targetConfig = detectTargetConfig({ targetRepoPath: repoRoot });
+const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targetConfig.baseBranch;
+
+const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env);
+const bannerResult = await runPreRunConfigurationBanner({
+  config: initialPreRunConfig,
+});
+
+if (bannerResult.action === "cancel") {
+  process.exit(0);
+}
+
+const activeConfig = bannerResult.config;
+const activeBaseBranch = activeConfig.baseBranch;
+
+// Update targetConfig with active overrides
+Object.assign(targetConfig, {
+  baseBranch: activeBaseBranch,
+  protectedBranches: activeConfig.protectedBranches,
+  gitIdentity: activeConfig.gitIdentity,
+  verifyCommand: activeConfig.verifyCommand,
+});
 
 // ---------------------------------------------------------------------------
 // Schemas and Types
@@ -98,7 +120,22 @@ const oauthPayload = formatOAuthPayloadForContainer(authResult);
  */
 function getSandboxEnv(): Readonly<Record<string, string>> {
   // Reads tokens, labels (process.env.SANDCASTLE_LABEL), and git identity
-  return resolveSandboxEnv(process.env);
+  const env = resolveSandboxEnv(process.env);
+  const overrides: Record<string, string> = {};
+  if (activeConfig.gitIdentity.name) {
+    overrides.GIT_USER_NAME = activeConfig.gitIdentity.name;
+    overrides.GIT_AUTHOR_NAME = activeConfig.gitIdentity.name;
+    overrides.GIT_COMMITTER_NAME = activeConfig.gitIdentity.name;
+  }
+  if (activeConfig.gitIdentity.email) {
+    overrides.GIT_USER_EMAIL = activeConfig.gitIdentity.email;
+    overrides.GIT_AUTHOR_EMAIL = activeConfig.gitIdentity.email;
+    overrides.GIT_COMMITTER_EMAIL = activeConfig.gitIdentity.email;
+  }
+  if (activeConfig.issueLabel) {
+    overrides.SANDCASTLE_LABEL = activeConfig.issueLabel;
+  }
+  return { ...env, ...overrides };
 }
 
 const sandboxEnv: Record<string, string> = {
@@ -107,12 +144,11 @@ const sandboxEnv: Record<string, string> = {
 };
 const sandboxImageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
 const defaultAgentModel = process.env.AGENT_MODEL ?? "gemini-3.8-flash-high";
-const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targetConfig.baseBranch;
 
-const PROTECTED_BRANCHES = new Set(targetConfig.protectedBranches);
-if (PROTECTED_BRANCHES.has(baseBranch)) {
+const PROTECTED_BRANCHES = new Set(activeConfig.protectedBranches);
+if (PROTECTED_BRANCHES.has(activeBaseBranch)) {
   console.error(
-    `[ERROR] Base branch cannot be one of the protected branches (${Array.from(PROTECTED_BRANCHES).join(", ")}). Configured: "${baseBranch}". ` +
+    `[ERROR] Base branch cannot be one of the protected branches (${Array.from(PROTECTED_BRANCHES).join(", ")}). Configured: "${activeBaseBranch}". ` +
       `Sandcastle agents are strictly restricted to base branch and its child branches.`,
   );
   process.exit(1);
@@ -135,10 +171,10 @@ function createSandboxProvider() {
  * Phase-specific model resolvers for PLANNER_MODEL, IMPLEMENTER_MODEL, REVIEWER_MODEL,
  * and MERGER_MODEL defaulting to AGENT_MODEL (and fallback "gemini-3.8-flash-high").
  */
-export const plannerModel = process.env.PLANNER_MODEL ?? defaultAgentModel;
-export const implementerModel = process.env.IMPLEMENTER_MODEL ?? defaultAgentModel;
-export const reviewerModel = process.env.REVIEWER_MODEL ?? defaultAgentModel;
-export const mergerModel = process.env.MERGER_MODEL ?? defaultAgentModel;
+export const plannerModel = activeConfig.models.planner ?? process.env.PLANNER_MODEL ?? defaultAgentModel;
+export const implementerModel = activeConfig.models.implementer ?? process.env.IMPLEMENTER_MODEL ?? defaultAgentModel;
+export const reviewerModel = activeConfig.models.reviewer ?? process.env.REVIEWER_MODEL ?? defaultAgentModel;
+export const mergerModel = activeConfig.models.merger ?? process.env.MERGER_MODEL ?? defaultAgentModel;
 
 /**
  * Creates an Antigravity agent provider instance configured with the specified model and options.
