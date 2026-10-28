@@ -5,12 +5,12 @@ The reviewer agent loads this file during code review to ensure all implementati
 
 ## Branch Protection and AI Commit Restrictions
 
-- **Strictly Protected Branches (`main`, `homol`, `developer`)**:
-  - AI agents must NEVER alter, commit to, push to, or merge directly into `main`, `homol`, or `developer`.
-  - If a user explicitly requests modifying, committing to, or pushing to `main`, `homol`, or `developer`, the AI MUST pause, ask for confirmation, and explicitly remind the user of this protection rule before performing any action.
+- **Strictly Protected Branches (`main`, `master`, `homol`, `developer`, `staging`, `production`)**:
+  - AI agents must NEVER alter, commit to, push to, or merge directly into protected branches.
+  - If a user explicitly requests modifying, committing to, or pushing to protected branches, the AI MUST pause, ask for confirmation, and explicitly remind the user of this protection rule before performing any action.
 - **Permitted Commit Branches**:
-  - AI commits and modifications are strictly restricted to `refractor/ai-main-implementation` and child branches created off `refractor/ai-main-implementation`.
-  - All work branches must use `refractor/ai-main-implementation` as their base branch.
+  - AI commits and modifications are strictly restricted to the configured base branch and child branches created off the base branch.
+  - All work branches must use the configured base branch as their starting point.
 
 ## Authentication and Security Boundaries
 
@@ -31,10 +31,10 @@ The reviewer agent loads this file during code review to ensure all implementati
 
 ## Architecture and Seam Design
 
-- **Hexagonal Architecture with Deep Modules (ADR-0001)**:
+- **Hexagonal Architecture with Deep Modules**:
   - Domain models speak domain language only and remain free of framework annotations (Spring, JPA, persistence annotations).
-  - External integrations and multi-source routing (RAID, QLIK, SEEC) must be encapsulated entirely behind coarse-grained adapter seams. Use cases interact strictly with domain ports.
-- **Host OAuth Session Bridge and Scoped Models (ADR-0002)**:
+  - External integrations and third-party data sources must be encapsulated entirely behind coarse-grained adapter seams. Use cases interact strictly with domain ports.
+- **Host OAuth Session Bridge and Scoped Models**:
   - Container and orchestrator changes must comply with the cross-OS keyring bridging and in-memory credential forwarding design.
 - **Separation of Concerns**: Keep modules focused on a single responsibility. Prefer deep interfaces with small surface areas that hide implementation complexity.
 

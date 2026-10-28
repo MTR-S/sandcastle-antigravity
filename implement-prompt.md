@@ -6,7 +6,7 @@ Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that 
 
 Only work on the issue specified.
 
-Work on branch {{BRANCH}}. Make commits and run tests.
+Work on branch {{BRANCH}} (branched from {{BASE_BRANCH}}). Make commits and run tests.
 
 # CONTEXT
 
@@ -18,9 +18,14 @@ Here are the last 10 commits:
 
 </recent-commits>
 
-# EXPLORATION
+# EXPLORATION & DOMAIN DOCS
 
 Explore the repo and fill your context window with relevant information that will allow you to complete the task.
+
+Discover and read the Target Repository's own domain files located at the root of the workspace:
+- `AGENTS.md`: Agent rules, execution constraints, and repository instructions.
+- `CONTEXT.md`: Architecture design, glossary, and domain boundaries.
+- `CODING_STANDARDS.md`: Coding standards, testing conventions, and design patterns.
 
 Pay extra attention to test files that touch the relevant parts of the code.
 
@@ -35,14 +40,13 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run Maven verification commands to ensure the build and tests succeed:
+Before committing, run the target verification command to ensure the build and tests succeed:
 
-1. Run `./mvnw test-compile` to verify that all code compiles without errors.
-2. Run `./mvnw test` to execute the automated test suite and ensure all tests pass.
+Run `{{VERIFY_COMMAND}}`.
 
-When executing `run_command` for `./mvnw` commands, specify `WaitMsBeforeAsync: 10000` so that execution completes synchronously before proceeding.
+When executing `run_command` for the verification command, specify `WaitMsBeforeAsync: 10000` so that execution completes synchronously before proceeding.
 
-Ensure both `./mvnw test-compile` and `./mvnw test` succeed prior to committing changes. Never commit code if compilation or tests fail.
+Ensure `{{VERIFY_COMMAND}}` succeeds prior to committing changes. Never commit code if compilation or tests fail.
 
 # COMMIT
 
@@ -67,4 +71,5 @@ Once complete, output <promise>COMPLETE</promise>.
 # FINAL RULES
 
 ONLY WORK ON A SINGLE TASK.
-NEVER alter, commit to, or push to `main`, `homol`, or `developer`. Commits are ONLY permitted on `refractor/ai-main-implementation` or designated child branches.
+All work is based off `{{BASE_BRANCH}}`.
+NEVER alter, commit to, or push to protected branches: {{PROTECTED_BRANCHES}}. Commits are ONLY permitted on `{{BRANCH}}` or designated child branches.

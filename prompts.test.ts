@@ -3,12 +3,24 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
+import {
+  buildPromptArgs,
+  substitutePromptVariables,
+  findUnsubstitutedVariables,
+  PROMPT_FILE_NAMES,
+  REQUIRED_PROMPT_VARIABLES,
+  TARGET_DOMAIN_DOC_FILES,
+  resolvePromptFile,
+} from "./prompts.ts";
 
 describe("Sandcastle Prompts & Template Configuration", () => {
   const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
-  const reviewPromptPath = resolve(repoRoot, ".sandcastle/review-prompt.md");
-  const planPromptPath = resolve(repoRoot, ".sandcastle/plan-prompt.md");
-  const mainMtsPath = resolve(repoRoot, ".sandcastle/main.mts");
+
+  const reviewPromptPath = resolvePromptFile("review-prompt.md", repoRoot);
+  const planPromptPath = resolvePromptFile("plan-prompt.md", repoRoot);
+  const implementPromptPath = resolvePromptFile("implement-prompt.md", repoRoot);
+  const mergePromptPath = resolvePromptFile("merge-prompt.md", repoRoot);
+  const mainMtsPath = resolvePromptFile("main.mts", repoRoot);
 
   describe("review-prompt.md template", () => {
     test("uses BASE_BRANCH instead of reserved TARGET_BRANCH", () => {
@@ -37,16 +49,15 @@ describe("Sandcastle Prompts & Template Configuration", () => {
       const content = readFileSync(reviewPromptPath, "utf-8");
       const args = {
         BRANCH: "sandcastle/issue-41",
-        BASE_BRANCH: "refractor/ai-main-implementation",
+        BASE_BRANCH: "main",
+        VERIFY_COMMAND: "npm test",
+        PROTECTED_BRANCHES: "main, master, developer",
       };
 
-      const interpolated = content.replace(
-        /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g,
-        (_, key: string) => (args as Record<string, string>)[key] ?? `{{${key}}}`,
-      );
+      const interpolated = substitutePromptVariables(content, args);
 
-      assert.match(interpolated, /git diff refractor\/ai-main-implementation\.\.\.sandcastle\/issue-41/);
-      assert.match(interpolated, /git log refractor\/ai-main-implementation\.\.sandcastle\/issue-41 --oneline/);
+      assert.match(interpolated, /git diff main\.\.\.sandcastle\/issue-41/);
+      assert.match(interpolated, /git log main\.\.sandcastle\/issue-41 --oneline/);
       assert.doesNotMatch(interpolated, /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/);
     });
   });
@@ -70,19 +81,13 @@ describe("Sandcastle Prompts & Template Configuration", () => {
   });
 
   describe("main.mts reviewer promptArgs and environment forwarding", () => {
-    test("defaults baseBranch to refractor/ai-main-implementation and enforces protection against main, homol, developer", () => {
+    test("defaults baseBranch to targetConfig and enforces protection against main, homol, developer", () => {
       const content = readFileSync(mainMtsPath, "utf-8");
 
       assert.match(
         content,
-        /baseBranch\s*=\s*process\.env\.BASE_BRANCH\s*\?\?\s*process\.env\.TARGET_BRANCH\s*\?\?\s*["']refractor\/ai-main-implementation["']/,
-        "main.mts must default baseBranch to refractor/ai-main-implementation",
-      );
-
-      assert.doesNotMatch(
-        content,
-        /\?\?\s*["']homol["']/,
-        "main.mts must not default baseBranch to homol",
+        /baseBranch\s*=\s*process\.env\.BASE_BRANCH\s*\?\?\s*process\.env\.TARGET_BRANCH\s*\?\?\s*targetConfig\.baseBranch/,
+        "main.mts must resolve baseBranch from env or targetConfig.baseBranch",
       );
 
       assert.match(
@@ -90,26 +95,15 @@ describe("Sandcastle Prompts & Template Configuration", () => {
         /PROTECTED_BRANCHES/,
         "main.mts must define PROTECTED_BRANCHES",
       );
-      assert.match(
-        content,
-        /main.*homol.*developer/,
-        "main.mts must include main, homol, developer in protected branches",
-      );
     });
 
-    test("passes BASE_BRANCH instead of reserved TARGET_BRANCH in reviewer promptArgs", () => {
+    test("passes BASE_BRANCH in promptArgs via buildPromptArgs", () => {
       const content = readFileSync(mainMtsPath, "utf-8");
 
       assert.doesNotMatch(
         content,
         /TARGET_BRANCH:\s*(?:baseBranch|targetBranch)/,
         "main.mts must not pass TARGET_BRANCH in promptArgs to avoid PromptError collision",
-      );
-
-      assert.match(
-        content,
-        /BASE_BRANCH:\s*baseBranch/,
-        "main.mts must pass BASE_BRANCH: baseBranch in reviewer promptArgs",
       );
     });
 
@@ -340,13 +334,15 @@ describe("Sandcastle Prompts & Template Configuration", () => {
     });
   });
 
-  describe("ADR-0002 and environment schemas (Issue #50)", () => {
-    const adrPath = resolve(repoRoot, "docs/adr/0002-sandcastle-host-oauth-bridge.md");
-    const envExamplePath = resolve(repoRoot, ".sandcastle/.env.example");
-    const codingStandardsPath = resolve(repoRoot, ".sandcastle/CODING_STANDARDS.md");
+  describe("ADR-0001 / ADR-0002 and environment schemas", () => {
+    const adr0001 = resolve(repoRoot, "docs/adr/0001-host-oauth-session-bridge.md");
+    const adr0002 = resolve(repoRoot, "docs/adr/0002-sandcastle-host-oauth-bridge.md");
+    const adrPath = existsSync(adr0001) ? adr0001 : adr0002;
+    const envExamplePath = resolvePromptFile(".env.example", repoRoot);
+    const codingStandardsPath = resolvePromptFile("CODING_STANDARDS.md", repoRoot);
 
-    test("ADR-0002 document exists and follows domain modeling conventions", () => {
-      assert.ok(existsSync(adrPath), "docs/adr/0002-sandcastle-host-oauth-bridge.md must exist");
+    test("Host OAuth ADR document exists and follows domain modeling conventions", () => {
+      assert.ok(existsSync(adrPath), `${adrPath} must exist`);
       const content = readFileSync(adrPath, "utf-8");
 
       // Title
@@ -369,7 +365,7 @@ describe("Sandcastle Prompts & Template Configuration", () => {
     });
 
     test(".env.example documents phase-scoped models and removes GEMINI_API_KEY", () => {
-      assert.ok(existsSync(envExamplePath), ".sandcastle/.env.example must exist");
+      assert.ok(existsSync(envExamplePath), `${envExamplePath} must exist`);
       const content = readFileSync(envExamplePath, "utf-8");
 
       assert.doesNotMatch(content, /^GEMINI_API_KEY=/m, ".env.example must not contain GEMINI_API_KEY assignment");
@@ -395,24 +391,19 @@ describe("Sandcastle Prompts & Template Configuration", () => {
 
       assert.match(
         standardsContent,
-        /refractor\/ai-main-implementation/,
-        "CODING_STANDARDS.md must document refractor/ai-main-implementation",
-      );
-      assert.match(
-        standardsContent,
-        /main.*homol.*developer|strictly protected/i,
-        "CODING_STANDARDS.md must document protected branches",
+        /protected|protection/i,
+        "CODING_STANDARDS.md must document branch protection",
       );
 
       assert.match(
         envExampleContent,
-        /BASE_BRANCH=refractor\/ai-main-implementation/,
-        ".env.example must document BASE_BRANCH=refractor/ai-main-implementation",
+        /BASE_BRANCH=/,
+        ".env.example must document BASE_BRANCH",
       );
     });
 
     test("CODING_STANDARDS.md documents Host OAuth bridge requirement and removal of API keys", () => {
-      assert.ok(existsSync(codingStandardsPath), ".sandcastle/CODING_STANDARDS.md must exist");
+      assert.ok(existsSync(codingStandardsPath), `${codingStandardsPath} must exist`);
       const content = readFileSync(codingStandardsPath, "utf-8");
 
       assert.match(content, /Host OAuth/i, "CODING_STANDARDS.md must document Host OAuth bridge requirement");
@@ -422,5 +413,188 @@ describe("Sandcastle Prompts & Template Configuration", () => {
       assert.doesNotMatch(content, /gemini-3.6-flash-high/, "CODING_STANDARDS.md must not reference deprecated gemini-3.6-flash-high");
     });
   });
-});
 
+  describe("Parametrized Prompts & Target Domain Docs Integration (Issue #8)", () => {
+    describe("Seam 1: Prompt Template Structure & Acceptance Criteria", () => {
+      test("all four prompt templates accept {{VERIFY_COMMAND}}, {{BASE_BRANCH}}, and {{PROTECTED_BRANCHES}}", () => {
+        assert.deepEqual(REQUIRED_PROMPT_VARIABLES, [
+          "VERIFY_COMMAND",
+          "BASE_BRANCH",
+          "PROTECTED_BRANCHES",
+        ]);
+
+        for (const name of PROMPT_FILE_NAMES) {
+          const path = resolvePromptFile(name, repoRoot);
+          assert.ok(existsSync(path), `${name} must exist at ${path}`);
+          const content = readFileSync(path, "utf-8");
+
+          for (const reqVar of REQUIRED_PROMPT_VARIABLES) {
+            assert.match(
+              content,
+              new RegExp(`\\{\\{\\s*${reqVar}\\s*\\}\\}`),
+              `${name} must accept {{${reqVar}}} placeholder`,
+            );
+          }
+        }
+      });
+
+      test("no hardcoded ./mvnw commands remain in repository prompt files", () => {
+        for (const name of PROMPT_FILE_NAMES) {
+          const content = readFileSync(resolvePromptFile(name, repoRoot), "utf-8");
+          assert.doesNotMatch(
+            content,
+            /\.\/mvnw/,
+            `${name} must not contain hardcoded ./mvnw references`,
+          );
+        }
+      });
+
+      test("no third-party client domain terms remain in prompt templates or coding standards", () => {
+        const forbiddenTerms = [
+          /\bRAID\b/,
+          /\bQLIK\b/,
+          /\bSEEC\b/,
+          /refractor\/ai-main-implementation/,
+        ];
+
+        for (const name of PROMPT_FILE_NAMES) {
+          const content = readFileSync(resolvePromptFile(name, repoRoot), "utf-8");
+          for (const pattern of forbiddenTerms) {
+            assert.doesNotMatch(
+              content,
+              pattern,
+              `${name} must not contain third-party or legacy client terms: ${pattern}`,
+            );
+          }
+        }
+
+        const codingStandardsContent = readFileSync(resolvePromptFile("CODING_STANDARDS.md", repoRoot), "utf-8");
+        for (const pattern of [/\bRAID\b/, /\bQLIK\b/, /\bSEEC\b/, /refractor\/ai-main-implementation/]) {
+          assert.doesNotMatch(
+            codingStandardsContent,
+            pattern,
+            `CODING_STANDARDS.md must not contain legacy client terms: ${pattern}`,
+          );
+        }
+      });
+
+      test("all four prompt templates explicitly instruct agents to discover and read AGENTS.md, CONTEXT.md, and CODING_STANDARDS.md", () => {
+        for (const name of PROMPT_FILE_NAMES) {
+          const content = readFileSync(resolvePromptFile(name, repoRoot), "utf-8");
+          for (const docFile of TARGET_DOMAIN_DOC_FILES) {
+            assert.match(
+              content,
+              new RegExp(`\\b${docFile.replace(".", "\\.")}\\b`),
+              `${name} must explicitly instruct reading ${docFile}`,
+            );
+          }
+        }
+      });
+    });
+
+    describe("Seam 2: Prompt Arguments Resolution & Variable Substitution Engine", () => {
+      test("buildPromptArgs merges common target config variables with phase-specific args", () => {
+        const mockTargetConfig = {
+          baseBranch: "feature/new-bridge",
+          verifyCommand: "npm test",
+          protectedBranches: ["main", "master", "staging"] as const,
+        };
+
+        const args = buildPromptArgs(mockTargetConfig, {
+          TASK_ID: "42",
+          ISSUE_TITLE: "Support OAuth",
+          BRANCH: "sandcastle/issue-42",
+        });
+
+        assert.equal(args.BASE_BRANCH, "feature/new-bridge");
+        assert.equal(args.VERIFY_COMMAND, "npm test");
+        assert.equal(args.PROTECTED_BRANCHES, "main, master, staging");
+        assert.equal(args.TASK_ID, "42");
+        assert.equal(args.ISSUE_TITLE, "Support OAuth");
+        assert.equal(args.BRANCH, "sandcastle/issue-42");
+      });
+
+      test("substitutes all placeholders across all four templates without leaving raw template tags", () => {
+        const mockTargetConfig = {
+          baseBranch: "main",
+          verifyCommand: "./mvnw test-compile && ./mvnw test",
+          protectedBranches: ["main", "homol", "developer"] as const,
+        };
+
+        const phaseArgsMap: Record<string, Record<string, string>> = {
+          "plan-prompt.md": {},
+          "implement-prompt.md": {
+            TASK_ID: "8",
+            ISSUE_TITLE: "feat: Parametrized Prompts",
+            BRANCH: "sandcastle/issue-8",
+          },
+          "review-prompt.md": {
+            BRANCH: "sandcastle/issue-8",
+          },
+          "merge-prompt.md": {
+            BRANCHES: "- sandcastle/issue-8",
+            ISSUES: "- 8: feat: Parametrized Prompts",
+          },
+        };
+
+        for (const name of PROMPT_FILE_NAMES) {
+          const content = readFileSync(resolvePromptFile(name, repoRoot), "utf-8");
+          const args = buildPromptArgs(mockTargetConfig, phaseArgsMap[name]);
+          const substituted = substitutePromptVariables(content, args as Record<string, string>);
+
+          const unreplaced = findUnsubstitutedVariables(substituted);
+          assert.deepEqual(
+            unreplaced,
+            [],
+            `${name} has unreplaced template placeholders: ${unreplaced.join(", ")}`,
+          );
+          assert.doesNotMatch(
+            substituted,
+            /\{\{\s*[A-Za-z0-9_]+\s*\}\}/,
+            `${name} must not contain any raw {{...}} tags after substitution`,
+          );
+        }
+      });
+    });
+
+    describe("Seam 3: Orchestrator main.mts Integration", () => {
+      test("main.mts uses buildPromptArgs to forward target configuration across all 4 phases", () => {
+        const content = readFileSync(mainMtsPath, "utf-8");
+
+        assert.match(
+          content,
+          /import\s+\{[^}]*buildPromptArgs[^}]*\}\s+from\s+["']\.\/prompts\.ts["']/,
+          "main.mts must import buildPromptArgs from ./prompts.ts",
+        );
+
+        // Planner promptArgs
+        assert.match(
+          content,
+          /name:\s*["']planner["'][\s\S]*?promptArgs:\s*buildPromptArgs\(\s*targetConfig\s*\)/m,
+          "main.mts planner phase must supply buildPromptArgs(targetConfig) in promptArgs",
+        );
+
+        // Implementer promptArgs
+        assert.match(
+          content,
+          /name:\s*["']implementer["'][\s\S]*?promptArgs:\s*buildPromptArgs\(\s*targetConfig,\s*\{[\s\S]*?TASK_ID[\s\S]*?ISSUE_TITLE[\s\S]*?BRANCH/m,
+          "main.mts implementer phase must supply buildPromptArgs(targetConfig, { TASK_ID, ISSUE_TITLE, BRANCH }) in promptArgs",
+        );
+
+        // Reviewer promptArgs
+        assert.match(
+          content,
+          /name:\s*["']reviewer["'][\s\S]*?promptArgs:\s*buildPromptArgs\(\s*targetConfig,\s*\{[\s\S]*?BRANCH/m,
+          "main.mts reviewer phase must supply buildPromptArgs(targetConfig, { BRANCH }) in promptArgs",
+        );
+
+        // Merger promptArgs
+        assert.match(
+          content,
+          /name:\s*["']merger["'][\s\S]*?promptArgs:\s*buildPromptArgs\(\s*targetConfig,\s*\{[\s\S]*?BRANCHES[\s\S]*?ISSUES/m,
+          "main.mts merger phase must supply buildPromptArgs(targetConfig, { BRANCHES, ISSUES }) in promptArgs",
+        );
+      });
+    });
+  });
+});

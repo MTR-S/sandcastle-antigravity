@@ -10,6 +10,20 @@ Here are the open issues in the repo:
 
 The list above has already been filtered to issues ready for work.
 
+# TARGET REPOSITORY CONTEXT & DOMAIN DOCS
+
+Before analyzing issues and constructing the execution plan, discover and read the Target Repository's own domain documentation located at the root of the workspace:
+- `AGENTS.md`: Project constraints, identity guidelines, and agent instructions.
+- `CONTEXT.md`: Domain architecture overview, glossary, and bounded contexts.
+- `CODING_STANDARDS.md`: Code quality rules, testing standards, and design conventions.
+
+Target configuration:
+- Base Branch: `{{BASE_BRANCH}}`
+- Protected Branches: {{PROTECTED_BRANCHES}}
+- Verification Command: `{{VERIFY_COMMAND}}`
+
+All planned feature branches must branch from and target `{{BASE_BRANCH}}`. Never plan direct commits or merges into protected branches ({{PROTECTED_BRANCHES}}).
+
 # TASK
 
 Analyze the open issues and build a dependency graph. For each issue, determine whether it **blocks** or **is blocked by** any other open issue.

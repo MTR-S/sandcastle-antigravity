@@ -37,6 +37,8 @@ import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
 import { runAuthPreflight, formatOAuthPayloadForContainer } from "./auth-preflight.ts";
 import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
+import { detectTargetConfig } from "./target-config.ts";
+import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 
 const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
 
@@ -51,6 +53,11 @@ for (const envPath of [
     // Ignore missing env file
   }
 }
+
+// ---------------------------------------------------------------------------
+// Target Repository Autodetection
+// ---------------------------------------------------------------------------
+const targetConfig = detectTargetConfig({ targetRepoPath: repoRoot });
 
 // ---------------------------------------------------------------------------
 // Schemas and Types
@@ -100,26 +107,15 @@ const sandboxEnv: Record<string, string> = {
 };
 const sandboxImageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
 const defaultAgentModel = process.env.AGENT_MODEL ?? "gemini-3.8-flash-high";
-const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? "refractor/ai-main-implementation";
+const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targetConfig.baseBranch;
 
-const PROTECTED_BRANCHES = new Set(["main", "homol", "developer"]);
+const PROTECTED_BRANCHES = new Set(targetConfig.protectedBranches);
 if (PROTECTED_BRANCHES.has(baseBranch)) {
   console.error(
-    `[ERROR] Base branch cannot be one of the protected branches (main, homol, developer). Configured: "${baseBranch}". ` +
-      `Sandcastle agents are strictly restricted to refractor/ai-main-implementation and its child branches.`,
+    `[ERROR] Base branch cannot be one of the protected branches (${Array.from(PROTECTED_BRANCHES).join(", ")}). Configured: "${baseBranch}". ` +
+      `Sandcastle agents are strictly restricted to base branch and its child branches.`,
   );
   process.exit(1);
-}
-
-/**
- * Resolves prompt template file from .sandcastle/ or repository root.
- */
-function resolvePromptFile(name: string): string {
-  const inSandcastle = resolve(repoRoot, ".sandcastle", name);
-  if (existsSync(inSandcastle)) {
-    return inSandcastle;
-  }
-  return resolve(repoRoot, name);
 }
 
 /**
@@ -185,6 +181,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       mode: "plan",
     }),
     promptFile: resolvePromptFile("plan-prompt.md"),
+    promptArgs: buildPromptArgs(targetConfig),
     // Extract and validate the <plan> JSON into a typed object. Throws
     // StructuredOutputError if the tag is missing, the JSON is malformed, or
     // validation fails — which aborts the loop.
@@ -234,11 +231,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             mode: "accept-edits",
           }),
           promptFile: resolvePromptFile("implement-prompt.md"),
-          promptArgs: {
+          promptArgs: buildPromptArgs(targetConfig, {
             TASK_ID: issue.id,
             ISSUE_TITLE: issue.title,
             BRANCH: issue.branch,
-          },
+          }),
         });
 
         // Only review if the implementer produced commits
@@ -252,10 +249,9 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 mode: "accept-edits",
               }),
               promptFile: resolvePromptFile("review-prompt.md"),
-              promptArgs: {
+              promptArgs: buildPromptArgs(targetConfig, {
                 BRANCH: issue.branch,
-                BASE_BRANCH: baseBranch,
-              },
+              }),
             });
 
             // Merge commits from both runs so the merge phase sees all of them.
@@ -338,12 +334,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       mode: "accept-edits",
     }),
     promptFile: resolvePromptFile("merge-prompt.md"),
-    promptArgs: {
+    promptArgs: buildPromptArgs(targetConfig, {
       // A markdown list of branch names, one per line.
       BRANCHES: completedBranches.map((b: string) => `- ${b}`).join("\n"),
       // A markdown list of issue IDs and titles, one per line.
       ISSUES: completedIssues.map((i: PlannedIssue) => `- ${i.id}: ${i.title}`).join("\n"),
-    },
+    }),
   });
 
   console.log("\nBranches merged.");
