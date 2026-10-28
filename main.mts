@@ -58,7 +58,7 @@ for (const envPath of [
 // ---------------------------------------------------------------------------
 // Target Repository Autodetection & Pre-Run Inspection Gate (Issue #9)
 // ---------------------------------------------------------------------------
-const targetConfig = detectTargetConfig({ targetRepoPath: repoRoot });
+let targetConfig = detectTargetConfig({ targetRepoPath: repoRoot });
 const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targetConfig.baseBranch;
 
 const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env);
@@ -73,8 +73,9 @@ if (bannerResult.action === "cancel") {
 const activeConfig = bannerResult.config;
 const activeBaseBranch = activeConfig.baseBranch;
 
-// Update targetConfig with active overrides
-Object.assign(targetConfig, {
+// Construct effective targetConfig with active overrides
+targetConfig = Object.freeze({
+  ...targetConfig,
   baseBranch: activeBaseBranch,
   protectedBranches: activeConfig.protectedBranches,
   gitIdentity: activeConfig.gitIdentity,

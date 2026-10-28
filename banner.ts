@@ -160,8 +160,10 @@ export const defaultPromptAdapter: PromptAdapter = {
   intro: p.intro,
   outro: p.outro,
   note: p.note,
-  select: p.select as unknown as PromptAdapter["select"],
-  text: p.text as unknown as PromptAdapter["text"],
+  select: (opts) =>
+    p.select(opts as Parameters<typeof p.select>[0]) as Promise<string | symbol>,
+  text: (opts) =>
+    p.text(opts as Parameters<typeof p.text>[0]) as Promise<string | symbol>,
   cancel: p.cancel,
   isCancel: p.isCancel,
   log: p.log,
