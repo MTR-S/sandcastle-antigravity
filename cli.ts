@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   runRescue,
   type RescueOptions,
@@ -38,10 +39,22 @@ export interface CliParsedArgs {
   readonly repoPath?: string;
   readonly yes: boolean;
   readonly tag?: string;
+  readonly buildArgs?: readonly string[];
   readonly unknownCommand?: string;
   readonly invalidArgError?: string;
   readonly rawArgs: readonly string[];
 }
+
+export const CliParsedArgsSchema = z.object({
+  command: z.enum(["run", "rescue", "doctor", "build-image", "help", "version", "unknown"]),
+  repoPath: z.string().optional(),
+  yes: z.boolean(),
+  tag: z.string().optional(),
+  buildArgs: z.array(z.string()).optional(),
+  unknownCommand: z.string().optional(),
+  invalidArgError: z.string().optional(),
+  rawArgs: z.array(z.string()),
+});
 
 export interface CliValidationResult {
   readonly valid: boolean;
@@ -49,6 +62,13 @@ export interface CliValidationResult {
 }
 
 export function validateCliArgs(args: CliParsedArgs): CliValidationResult {
+  const schemaResult = CliParsedArgsSchema.safeParse(args);
+  if (!schemaResult.success) {
+    return {
+      valid: false,
+      error: `Invalid CLI arguments: ${schemaResult.error.message}`,
+    };
+  }
   if (args.invalidArgError) {
     return {
       valid: false,
@@ -131,6 +151,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
   let repoPath: string | undefined;
   let yes = false;
   let tag: string | undefined;
+  let buildArgs: string[] = [];
   let invalidArgError: string | undefined;
 
   let i = 0;
@@ -153,6 +174,14 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
         i++;
       } else {
         tag = args[i + 1];
+        i += 2;
+      }
+    } else if (arg === "--build-arg") {
+      if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
+        invalidArgError = `Option "${arg}" requires a KEY=VALUE argument.`;
+        i++;
+      } else {
+        buildArgs.push(args[i + 1]);
         i += 2;
       }
     } else if (!arg.startsWith("-")) {
@@ -178,6 +207,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     repoPath,
     yes,
     tag,
+    buildArgs: buildArgs.length > 0 ? Object.freeze(buildArgs) : undefined,
     unknownCommand,
     invalidArgError,
     rawArgs: Object.freeze(argv),
@@ -265,8 +295,19 @@ export async function dispatchCli(argv: readonly string[], io: CliIo = {}): Prom
         return await io.buildImageHandler(parsed, io);
       }
       {
+        let buildArgsMap: Record<string, string> | undefined;
+        if (parsed.buildArgs && parsed.buildArgs.length > 0) {
+          buildArgsMap = {};
+          for (const pair of parsed.buildArgs) {
+            const eqIdx = pair.indexOf("=");
+            if (eqIdx !== -1) {
+              buildArgsMap[pair.slice(0, eqIdx)] = pair.slice(eqIdx + 1);
+            }
+          }
+        }
         const buildResult = await runBuildImage({
           imageName: parsed.tag,
+          buildArgs: buildArgsMap,
           logger: log,
           errorLogger: errorLog,
         });

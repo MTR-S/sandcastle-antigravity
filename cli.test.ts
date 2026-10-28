@@ -48,6 +48,13 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(parsed.tag, "custom-sandcastle-agent:v1");
     });
 
+    test("parses build-image subcommand with --build-arg option", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["build-image", "--build-arg", "AGENT_UID=1000"]);
+      assert.equal(parsed.command, "build-image");
+      assert.deepEqual(parsed.buildArgs, ["AGENT_UID=1000"]);
+    });
+
     test("parses --help and -h flags", async () => {
       const { parseCliArgs } = await import("./cli.ts");
       assert.equal(parseCliArgs(["--help"]).command, "help");
@@ -431,6 +438,26 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(result.success, true);
       assert.equal(result.imageTag, "custom-agent:v2");
       assert.ok(executedCmd.includes("docker build -t custom-agent:v2"));
+    });
+
+    test("appends build arguments to docker build command when provided", async () => {
+      const { runBuildImage } = await import("./cli.ts");
+      let executedCmd = "";
+
+      const result = await runBuildImage({
+        imageName: "custom-agent:v2",
+        contextDir: "/root",
+        buildArgs: { AGENT_UID: "1000", AGENT_GID: "1000" },
+        logger: () => {},
+        runner: (cmd) => {
+          executedCmd = cmd;
+          return { status: 0, stdout: "", stderr: "" };
+        },
+      });
+
+      assert.equal(result.success, true);
+      assert.ok(executedCmd.includes("--build-arg AGENT_UID=1000"));
+      assert.ok(executedCmd.includes("--build-arg AGENT_GID=1000"));
     });
 
     test("handles docker build failure gracefully and returns success=false", async () => {

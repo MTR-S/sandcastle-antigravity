@@ -42,12 +42,17 @@ import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-c
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
-import { parseCliArgs, dispatchCli } from "./cli.ts";
+import { parseCliArgs, validateCliArgs, dispatchCli } from "./cli.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
 // ---------------------------------------------------------------------------
 const parsedCli = parseCliArgs(process.argv);
+const validation = validateCliArgs(parsedCli);
+if (!validation.valid) {
+  console.error(`[CLI ERROR] ${validation.error}`);
+  process.exit(1);
+}
 
 if (parsedCli.command !== "run") {
   const exitCode = await dispatchCli(process.argv);
@@ -56,7 +61,7 @@ if (parsedCli.command !== "run") {
 
 const repoRoot = parsedCli.repoPath
   ? resolve(parsedCli.repoPath)
-  : (existsSync(".git") ? process.cwd() : resolve(process.cwd(), ".."));
+  : (existsSync(".git") ? process.cwd() : process.cwd());
 
 // Load local environment variables from .sandcastle/.env or .env if present
 for (const envPath of [

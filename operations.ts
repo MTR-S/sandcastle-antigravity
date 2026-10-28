@@ -32,6 +32,7 @@ export interface BuildImageOptions {
   readonly imageName?: string;
   readonly dockerfile?: string;
   readonly contextDir?: string;
+  readonly buildArgs?: Record<string, string>;
   readonly runner?: (cmd: string, cwd?: string) => { status: number; stdout: string; stderr: string };
   readonly logger?: (msg: string) => void;
   readonly errorLogger?: (msg: string) => void;
@@ -102,14 +103,6 @@ function runExecCommand(cmd: string, cwd?: string): { status: number; stdout: st
   }
 }
 
-function defaultDockerRunner(cmd: string): { status: number; stdout: string; stderr: string } {
-  return runExecCommand(cmd);
-}
-
-function defaultGitRunner(cmd: string, cwd: string): { status: number; stdout: string; stderr: string } {
-  return runExecCommand(cmd, cwd);
-}
-
 /**
  * Executes rescue operation:
  * 1. Stops & kills lingering sandcastle-agent containers.
@@ -122,8 +115,8 @@ export async function runRescue(options: RescueOptions = {}): Promise<RescueResu
     ? resolve(options.targetRepoPath)
     : process.cwd();
 
-  const dockerRun = options.dockerRunner ?? defaultDockerRunner;
-  const gitRun = options.gitRunner ?? defaultGitRunner;
+  const dockerRun = options.dockerRunner ?? runExecCommand;
+  const gitRun = options.gitRunner ?? runExecCommand;
   const copyClip = options.clipboardAdapter ?? defaultCopyToClipboard;
   const fsOps = options.fsAdapter ?? {
     existsSync: fs.existsSync,
@@ -148,6 +141,7 @@ export async function runRescue(options: RescueOptions = {}): Promise<RescueResu
     log(`[RESCUE] Found ${containerIds.length} active Sandcastle container(s). Terminating...`);
     for (const cid of containerIds) {
       dockerRun(`docker kill ${cid}`);
+      dockerRun(`docker rm -f ${cid}`);
       killed.push(cid);
     }
     log(`[RESCUE] Terminated containers: ${killed.join(", ")}`);
@@ -237,8 +231,9 @@ export async function runRescue(options: RescueOptions = {}): Promise<RescueResu
         log("[RESCUE] Clipboard unavailable. Tail output from latest log:");
         log(tailText);
       }
-    } catch (err: any) {
-      log(`[RESCUE] Could not read log file: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log(`[RESCUE] Could not read log file: ${msg}`);
     }
   } else {
     log("[RESCUE] No execution logs found.");
@@ -276,10 +271,11 @@ function defaultAuthChecker(): { ok: boolean; details?: string; remediation?: st
       ok: true,
       details: "Valid Google Antigravity session token found in Windows Credential Manager.",
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      details: `Auth check threw: ${err.message}`,
+      details: `Auth check threw: ${msg}`,
       remediation: "Run 'agy login' to refresh credentials.",
     };
   }
@@ -287,7 +283,7 @@ function defaultAuthChecker(): { ok: boolean; details?: string; remediation?: st
 
 function defaultDockerChecker(): { ok: boolean; details?: string; remediation?: string } {
   try {
-    const res = defaultDockerRunner("docker info");
+    const res = runExecCommand("docker info");
     if (res.status === 0) {
       return { ok: true, details: "Docker daemon is active and responsive." };
     }
@@ -307,7 +303,7 @@ function defaultDockerChecker(): { ok: boolean; details?: string; remediation?: 
 
 function defaultGitChecker(repoPath: string): { ok: boolean; details?: string; remediation?: string } {
   try {
-    const gitVer = defaultGitRunner("git --version", repoPath);
+    const gitVer = runExecCommand("git --version", repoPath);
     if (gitVer.status !== 0) {
       return {
         ok: false,
@@ -315,7 +311,7 @@ function defaultGitChecker(repoPath: string): { ok: boolean; details?: string; r
         remediation: "Install Git and ensure it is available on system PATH.",
       };
     }
-    const worktreeCheck = defaultGitRunner("git rev-parse --is-inside-work-tree", repoPath);
+    const worktreeCheck = runExecCommand("git rev-parse --is-inside-work-tree", repoPath);
     if (worktreeCheck.status !== 0 || !worktreeCheck.stdout.trim().includes("true")) {
       return {
         ok: false,
@@ -327,10 +323,11 @@ function defaultGitChecker(repoPath: string): { ok: boolean; details?: string; r
       ok: true,
       details: `Git is available and repository at "${repoPath}" is valid.`,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      details: `Git validation failed: ${err.message}`,
+      details: `Git validation failed: ${msg}`,
       remediation: "Verify Git installation and target repository path.",
     };
   }
@@ -343,7 +340,7 @@ function defaultGhChecker(): { ok: boolean; details?: string; remediation?: stri
   try {
     execSync("gh auth status", { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
     return { ok: true, details: "GitHub CLI is authenticated." };
-  } catch (err: any) {
+  } catch {
     return {
       ok: false,
       details: "GitHub CLI is not authenticated or gh is not installed.",
@@ -389,10 +386,11 @@ function defaultStackChecker(repoPath: string): { ok: boolean; details?: string;
         details: "No standard Maven, Gradle, or Node marker found. Verification command can be configured via banner or .env.",
       };
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      details: `Tech stack detection failed: ${err.message}`,
+      details: `Tech stack detection failed: ${msg}`,
       remediation: "Verify target repository files.",
     };
   }
@@ -494,7 +492,12 @@ export async function runBuildImage(options: BuildImageOptions = {}): Promise<Bu
   const contextDir = options.contextDir ?? packageRoot;
   const dockerfile = options.dockerfile ?? resolve(contextDir, "Dockerfile");
 
-  const cmd = `docker build -t ${imageTag} -f "${dockerfile}" "${contextDir}"`;
+  let cmd = `docker build -t ${imageTag} -f "${dockerfile}" "${contextDir}"`;
+  if (options.buildArgs) {
+    for (const [key, val] of Object.entries(options.buildArgs)) {
+      cmd += ` --build-arg ${key}=${val}`;
+    }
+  }
   log(`[BUILD-IMAGE] Building Docker container image: ${imageTag}`);
   log(`[BUILD-IMAGE] Executing: ${cmd}`);
 
@@ -506,8 +509,9 @@ export async function runBuildImage(options: BuildImageOptions = {}): Promise<Bu
         stdout: "",
         stderr: res.error?.message ?? "",
       };
-    } catch (err: any) {
-      return { status: 1, stdout: "", stderr: err.message };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { status: 1, stdout: "", stderr: msg };
     }
   });
 
