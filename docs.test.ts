@@ -6,7 +6,9 @@ import { execSync } from "node:child_process";
 
 describe("Sandcastle Antigravity OAuth Guide & Git Isolation", () => {
   const REPO_ROOT = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
-  const DOCS_DIR = resolve(REPO_ROOT, ".sandcastle/docs");
+  const DOCS_DIR = existsSync(resolve(REPO_ROOT, "docs/antigravity-oauth-guide.md"))
+    ? resolve(REPO_ROOT, "docs")
+    : resolve(REPO_ROOT, ".sandcastle/docs");
   const GUIDE_PATH = resolve(DOCS_DIR, "antigravity-oauth-guide.md");
   const GIT_EXCLUDE_PATH = resolve(REPO_ROOT, ".git/info/exclude");
 
