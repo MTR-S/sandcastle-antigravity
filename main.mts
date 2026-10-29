@@ -43,6 +43,7 @@ import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
 import { parseCliArgs, validateCliArgs, dispatchCli } from "./cli.ts";
+import { cleanupTargetRepository } from "./operations.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
@@ -176,6 +177,21 @@ if (PROTECTED_BRANCHES.has(activeBaseBranch)) {
   process.exit(1);
 }
 
+// ---------------------------------------------------------------------------
+// Dry-Run Mode & Multi-Repository Automated Smoke Verification (Issue #11)
+// ---------------------------------------------------------------------------
+if (process.env.SANDCASTLE_DRY_RUN === "true" || process.env.SANDCASTLE_DRY_RUN === "1") {
+  console.log(`[DRY-RUN] Target configuration detected and validated for ${targetConfig.techStack} repository.`);
+  console.log(`[DRY-RUN] Target path: ${targetConfig.targetRepoPath}`);
+  console.log(`[DRY-RUN] Base branch: ${activeConfig.baseBranch}`);
+  console.log(`[DRY-RUN] Verification command: ${activeConfig.verifyCommand}`);
+  console.log(`[DRY-RUN] Git Author: ${activeConfig.gitIdentity.name ?? "none"} <${activeConfig.gitIdentity.email ?? "none"}>`);
+  console.log(`[DRY-RUN] Cache mounts: ${targetConfig.cacheMounts.map((m) => `${m.hostPath}:${m.sandboxPath}`).join(", ") || "none"}`);
+  console.log(`[DRY-RUN] Execution completed cleanly.`);
+  cleanupTargetRepository(repoRoot);
+  process.exit(0);
+}
+
 /**
  * Creates a Docker sandbox provider with forwarded API authentication, GitHub tokens, and cache mounts.
  */
@@ -215,7 +231,8 @@ function createAgent(
 // Main loop
 // ---------------------------------------------------------------------------
 
-for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+try {
+  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
   // -------------------------------------------------------------------------
@@ -401,7 +418,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   });
 
   console.log("\nBranches merged.");
-}
+  }
 
-console.log("\nAll done.");
+  console.log("\nAll done.");
+} finally {
+  cleanupTargetRepository(repoRoot);
+}
 process.exit(0);

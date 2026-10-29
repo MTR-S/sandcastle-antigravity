@@ -9,3 +9,5 @@ node_modules/
 # Runtime execution artifacts
 logs/
 worktrees/
+
+.sandcastle/
