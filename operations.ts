@@ -186,6 +186,7 @@ export async function runRescue(options: RescueOptions = {}): Promise<RescueResu
   const candidateLogDirs = [
     join(targetRepo, ".sandcastle", "logs"),
     join(process.cwd(), ".sandcastle", "logs"),
+    join(resolve(fileURLToPath(new URL(".", import.meta.url))), ".sandcastle", "logs"),
   ];
 
   for (const logDir of candidateLogDirs) {
@@ -532,5 +533,84 @@ export async function runBuildImage(options: BuildImageOptions = {}): Promise<Bu
       command: cmd,
       error: errorMsg,
     };
+  }
+}
+
+export interface CleanupTargetRepoResult {
+  readonly cleanedSandcastleDir: boolean;
+  readonly logsPreserved: number;
+}
+
+/**
+ * Ensures that external target repositories remain completely clean after an orchestrator run.
+ * 1. Preserves any generated .sandcastle/logs by archiving them to the orchestrator package root.
+ * 2. Prunes any leftover git worktrees in the target repository.
+ * 3. Removes the .sandcastle directory from the target repository working tree.
+ */
+export function cleanupTargetRepository(
+  targetRepoPath: string,
+  packageRoot?: string,
+): CleanupTargetRepoResult {
+  const targetDir = resolve(targetRepoPath);
+  const pkgDir = packageRoot
+    ? resolve(packageRoot)
+    : resolve(fileURLToPath(new URL(".", import.meta.url)));
+
+  // Do not clean up .sandcastle if target repository is the orchestrator package itself
+  if (targetDir === pkgDir) {
+    return { cleanedSandcastleDir: false, logsPreserved: 0 };
+  }
+
+  const targetSandcastleDir = join(targetDir, ".sandcastle");
+  if (!fs.existsSync(targetSandcastleDir)) {
+    return { cleanedSandcastleDir: false, logsPreserved: 0 };
+  }
+
+  let logsPreserved = 0;
+  const targetLogsDir = join(targetSandcastleDir, "logs");
+  if (fs.existsSync(targetLogsDir)) {
+    const pkgLogsDir = join(pkgDir, ".sandcastle", "logs");
+    if (!fs.existsSync(pkgLogsDir)) {
+      try {
+        fs.mkdirSync(pkgLogsDir, { recursive: true });
+      } catch {
+        // Ignore mkdir error
+      }
+    }
+
+    try {
+      const files = fs.readdirSync(targetLogsDir);
+      for (const file of files) {
+        if (file.endsWith(".log")) {
+          const src = join(targetLogsDir, file);
+          const dest = join(pkgLogsDir, file);
+          try {
+            fs.copyFileSync(src, dest);
+            logsPreserved++;
+          } catch {
+            // Ignore individual file copy error
+          }
+        }
+      }
+    } catch {
+      // Ignore readdir error
+    }
+  }
+
+  // Prune any stale git worktrees in target repository if git is present
+  try {
+    if (fs.existsSync(join(targetDir, ".git"))) {
+      spawnSync("git", ["worktree", "prune"], { cwd: targetDir, stdio: "ignore" });
+    }
+  } catch {
+    // Ignore git prune failure
+  }
+
+  // Remove .sandcastle folder recursively from target repository
+  try {
+    fs.rmSync(targetSandcastleDir, { recursive: true, force: true });
+    return { cleanedSandcastleDir: true, logsPreserved };
+  } catch {
+    return { cleanedSandcastleDir: false, logsPreserved };
   }
 }

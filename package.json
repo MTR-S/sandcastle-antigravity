@@ -16,9 +16,9 @@
   "scripts": {
     "build-image": "docker build -t sandcastle-agent -f Dockerfile .",
     "inspect-image": "docker run --rm --entrypoint sh sandcastle-agent -c \"java -version && agy --version\"",
-    "test": "node --test auth-preflight.test.ts antigravity.test.ts docker-config.test.ts target-config.test.ts prompts.test.ts banner.test.ts cli.test.ts docs.test.ts smoke.test.ts",
-    "test:unit": "node --test auth-preflight.test.ts antigravity.test.ts docker-config.test.ts target-config.test.ts prompts.test.ts banner.test.ts cli.test.ts docs.test.ts",
-    "test:smoke": "node --test smoke.test.ts",
+    "test": "node --test auth-preflight.test.ts antigravity.test.ts docker-config.test.ts target-config.test.ts prompts.test.ts banner.test.ts cli.test.ts docs.test.ts distribution.test.ts multi-repo-smoke.test.ts smoke.test.ts",
+    "test:unit": "node --test auth-preflight.test.ts antigravity.test.ts docker-config.test.ts target-config.test.ts prompts.test.ts banner.test.ts cli.test.ts docs.test.ts distribution.test.ts",
+    "test:smoke": "node --test multi-repo-smoke.test.ts smoke.test.ts",
     "orchestrate": "tsx main.mts",
     "typecheck": "tsc --noEmit"
   },
