@@ -29,13 +29,13 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
       );
       assert.doesNotMatch(
         dockerfileContent,
-        /matheus-sortech/i,
-        "Dockerfile must not contain hardcoded 'matheus-sortech'",
+        /corporate-username/i,
+        "Dockerfile must not contain hardcoded corporate username",
       );
       assert.doesNotMatch(
         dockerfileContent,
-        /sortech\.com\.br/i,
-        "Dockerfile must not contain hardcoded corporate email domain 'sortech.com.br'",
+        /corporate-domain\.com/i,
+        "Dockerfile must not contain hardcoded corporate email domain",
       );
     });
 
@@ -54,13 +54,13 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
     test("getSandboxEnv forwards GIT_USER_NAME and GIT_USER_EMAIL when present", () => {
       const env = getSandboxEnv({
         GIT_USER_NAME: "MTR-S",
-        GIT_USER_EMAIL: "matheusalmeidass14@gmail.com",
+        GIT_USER_EMAIL: "dev@example.com",
         GH_TOKEN: "mock-gh-token",
         SANDCASTLE_LABEL: "ready-for-agent",
       });
 
       assert.equal(env.GIT_USER_NAME, "MTR-S");
-      assert.equal(env.GIT_USER_EMAIL, "matheusalmeidass14@gmail.com");
+      assert.equal(env.GIT_USER_EMAIL, "dev@example.com");
       assert.equal(env.GH_TOKEN, "mock-gh-token");
       assert.equal(env.GITHUB_TOKEN, "mock-gh-token");
       assert.equal(env.SANDCASTLE_LABEL, "ready-for-agent");

@@ -32,7 +32,7 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
     - `gitUserName` e `gitUserEmail` (lidos via `git config` no `Target Repository` com fallback global).
     - `ghAccount` e `ghToken` (verificando `GH_TOKEN` ou `gh auth status` / `gh auth token`).
     - `verifyCommand` autodetectado por stack: Maven (`./mvnw test-compile && ./mvnw test`), Gradle (`./gradlew test`) ou Node (`npm test`).
-  - Parametrizar `implement-prompt.md`, `review-prompt.md`, `merge-prompt.md` e `CODING_STANDARDS.md` para receber `{{VERIFY_COMMAND}}`, `{{BASE_BRANCH}}` e `{{PROTECTED_BRANCHES}}`, removendo referências específicas da API DIFAL (RAID, QLIK, SEEC) e instruindo os agentes a lerem os arquivos `AGENTS.md`, `CONTEXT.md` e `CODING_STANDARDS.md` do próprio `Target Repository`.
+  - Parametrizar `implement-prompt.md`, `review-prompt.md`, `merge-prompt.md` e `CODING_STANDARDS.md` para receber `{{VERIFY_COMMAND}}`, `{{BASE_BRANCH}}` e `{{PROTECTED_BRANCHES}}`, removendo quaisquer regras de domínio fixas de projetos legados e instruindo os agentes a lerem os arquivos `AGENTS.md`, `CONTEXT.md` e `CODING_STANDARDS.md` do próprio `Target Repository`.
 - **Critérios de Aceite**:
   - Nenhum prompt contém comandos `./mvnw` fixos ou termos de domínio de terceiros; tudo é resolvido via placeholders `{{VERIFY_COMMAND}}`, `{{BASE_BRANCH}}`, `{{PROTECTED_BRANCHES}}`.
   - Testes unitários em `prompts.test.ts` e `target-config.test.ts` cobrindo detecção de projetos Maven, Gradle e Node/TS.

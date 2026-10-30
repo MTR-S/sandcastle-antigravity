@@ -162,7 +162,7 @@ When invoked without `--yes`, `sandcastle-agy run` presents an interactive termi
 ◇  Active Base Branch     : develop
 ◇  Protected Branches     : main, master, homol, developer, staging, production
 ◇  Git Author Identity    : Developer Name <dev@example.com>
-◇  GitHub User/Token      : MTR-S (token: configured [gh:cli])
+◇  GitHub User/Token      : your-github-account (token: configured [gh:cli])
 ◇  Verification Command   : ./mvnw test-compile && ./mvnw test
 ◇  Issue Label filter     : ready-for-agent
 ◇  Models assigned per phase:
@@ -258,11 +258,11 @@ You can explicitly configure credentials via environment variables without chang
 ```bash
 # GitHub Token override
 export GH_TOKEN="ghp_yourPersonalGitHubToken"
-export GH_USER="MTR-S"
+export GH_USER="your-github-username"
 
 # Dynamic Git Authorship override
-export GIT_USER_NAME="Matheus de Sousa Almeida"
-export GIT_USER_EMAIL="matheusalmeidass14@gmail.com"
+export GIT_USER_NAME="Developer Name"
+export GIT_USER_EMAIL="dev@example.com"
 ```
 
 The orchestrator dynamically forwards these values into the container sandbox.

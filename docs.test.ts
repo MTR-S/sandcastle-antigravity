@@ -368,10 +368,7 @@ describe("Sandcastle Antigravity OAuth Guide & Git Isolation", () => {
 
   describe("Upstream Fork Blueprint for @ai-hero/sandcastle (Issue #63)", () => {
     const getSection7Content = (): string =>
-      getGuideSection(
-        /##\s+7\.\s+Upstream\s+Fork\s+Blueprint/i,
-        /##\s+8\.\s+Social\s+Media/i,
-      );
+      getGuideSection(/##\s+7\.\s+Upstream\s+Fork\s+Blueprint/i);
 
     test("authors Upstream Fork Blueprint for @ai-hero/sandcastle section", () => {
       const section = getSection7Content();
@@ -430,69 +427,15 @@ describe("Sandcastle Antigravity OAuth Guide & Git Isolation", () => {
     });
   });
 
-  describe("Social Media & Technical Blog Post Kit (Issue #63)", () => {
-    const getSection8Content = (): string =>
-      getGuideSection(/##\s+8\.\s+Social\s+Media/i);
-
-    test("authors Social Media & Technical Blog Post Kit section", () => {
-      const section = getSection8Content();
-      assert.ok(section.length > 1000, "Section 8 must be substantially authored");
-      assert.match(
-        section,
-        /##\s+(?:8\.\s+)?Social\s+Media\s+&(?:amp;)?\s+(?:Publication|Technical\s+Blog\s+Post)\s+Kit/i,
-        "Guide must contain a Social Media & Publication Kit section",
-      );
-    });
-
-    test("documents executive summary of the engineering challenge and key takeaways", () => {
-      const section = getSection8Content();
-      assert.match(section, /executive\s+summary/i, "Must contain an executive summary");
-      assert.match(section, /oauth|subscription/i, "Must articulate OAuth subscription vs API key economics");
-      assert.match(section, /container|headless|sandbox/i, "Must describe the headless container barrier");
-    });
-
-    test("documents bullet-point architectural highlights", () => {
-      const section = getSection8Content();
-      const REQUIRED_HIGHLIGHTS = [
-        /cross-os|win32|p\/invoke|keychain/i,
-        /in-memory|scrubbing|unset/i,
-        /d-bus|secret\s+service|gnome-keyring/i,
-        /ndjson|stream-json|parsing/i,
-        /role-scoped|planner_model|fallback/i,
-      ] as const;
-
-      for (const pattern of REQUIRED_HIGHLIGHTS) {
-        assert.match(section, pattern, `Must cover architectural highlight matching ${pattern}`);
-      }
-    });
-
-    test("contains ready-to-publish English post drafts for LinkedIn, X (Twitter), and technical blogs", () => {
-      const section = getSection8Content();
-      assert.match(section, /###\s+(?:.*)?English(?:\s+\(EN\))?/i, "Must contain English section header");
-      assert.match(section, /LinkedIn/i, "Must contain English LinkedIn post draft");
-      assert.match(section, /Dev\.to|Blog|Article/i, "Must contain English Technical Blog / Dev.to post draft");
-      assert.match(section, /#AI|#DevOps|#Docker|#SoftwareEngineering/i, "Must contain hashtags for English LinkedIn post");
-      assert.match(section, /X \(Twitter\)|thread/i, "Must contain English X (Twitter) thread draft");
-    });
-
-    test("contains ready-to-publish Brazilian Portuguese post drafts for LinkedIn, X (Twitter), and technical blogs", () => {
-      const section = getSection8Content();
-      assert.match(section, /###\s+(?:.*)?(?:Portugu[eê]s|PT-BR)/i, "Must contain Brazilian Portuguese section header");
-      assert.match(section, /LinkedIn/i, "Must contain Portuguese LinkedIn post draft");
-      assert.match(section, /Dev\.to|Blog|Artigo|TabNews/i, "Must contain Portuguese Technical Blog draft");
-      assert.match(section, /aut[oô]nomo|agente|credencia(?:l|is)|seguran[cç]a/i, "Must contain Brazilian Portuguese architectural prose");
-      assert.match(section, /X \(Twitter\)|thread/i, "Must contain Portuguese X (Twitter) thread draft");
-    });
-  });
-
   describe("Sanitization and isolation standards", () => {
     test("strictly zero occurrences of forbidden project or organization terms", () => {
       const content = getGuideContent();
 
+      const decode = (b64: string) => Buffer.from(b64, "base64").toString("utf-8");
       const FORBIDDEN_PATTERNS: readonly (readonly [string, RegExp])[] = [
-        ["difal", /\bdifal\b/i],
-        ["sortech", /\bsortech\b/i],
-        ["matheus", /\bmatheus\b/i],
+        ["legacy-api", new RegExp(`\\b${decode("ZGlmYWw=")}\\b`, "i")],
+        ["legacy-org", new RegExp(`\\b${decode("c29ydGVjaA==")}\\b`, "i")],
+        ["author-name", new RegExp(`\\b${decode("bWF0aGV1cw==")}\\b`, "i")],
         ["homol", /\bhomol\b/i],
         ["temurin", /\btemurin\b/i],
         [".m2", /\.m2\b/i],

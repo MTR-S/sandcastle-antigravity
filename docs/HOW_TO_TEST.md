@@ -16,7 +16,7 @@ Ensure the following tools and services are running and authenticated on your ho
 
 1. **Docker Desktop / Docker Engine**: Running locally with Linux container support (WSL2 on Windows).
 2. **Google Antigravity CLI (`agy`)**: Installed and authenticated on host via `agy login` (session stored in Windows Credential Manager as `gemini:antigravity`).
-3. **GitHub CLI (`gh`)**: Installed and authenticated (`gh auth status` verifying active account, e.g. `MTR-S`).
+3. **GitHub CLI (`gh`)**: Installed and authenticated (`gh auth status` verifying active account, e.g. `your-github-account`).
 4. **Git**: Git 2.40+ installed and available in your terminal PATH.
 5. **Node.js**: v22.0.0 or higher (for native TypeScript/ESM execution).
 
@@ -29,7 +29,7 @@ Ensure the following tools and services are running and authenticated on your ho
 The container image is built once locally and reused across all your target projects:
 
 ```bash
-cd C:\Users\MatheusAlmeida\projects\sandcastle-antigravity
+cd C:\path\to\sandcastle-antigravity
 npm run build-image
 ```
 
@@ -58,7 +58,7 @@ sandcastle-agy --help
 > [!NOTE]
 > **Direct invocation without `npm link`:** You can also run the CLI without linking globally:
 > ```bash
-> node C:\Users\MatheusAlmeida\projects\sandcastle-antigravity\main.mts <command>
+> node C:\path\to\sandcastle-antigravity\main.mts <command>
 > ```
 
 ---
@@ -122,7 +122,7 @@ Before provisioning any containers or worktrees, an interactive banner displays 
 ◇  Active Base Branch     : main
 ◇  Protected Branches     : main, master, homol, developer, staging, production
 ◇  Git Author Identity    : Developer Name <dev@example.com>
-◇  GitHub User/Token      : MTR-S (token: configured [gh:cli])
+◇  GitHub User/Token      : your-github-account (token: configured [gh:cli])
 ◇  Verification Command   : npm test
 ◇  Issue Label filter     : ready-for-agent
 ◇  Models assigned per phase:
@@ -189,7 +189,7 @@ Antes de testar, confirme que os serviços e ferramentas abaixo estão ativos no
 
 1. **Docker Desktop**: Em execução localmente com suporte a contêineres Linux (WSL2).
 2. **Google Antigravity CLI (`agy`)**: Autenticado no host via `agy login` (sessão persistida no Windows Credential Manager como `gemini:antigravity`).
-3. **GitHub CLI (`gh`)**: Instalado e autenticado (`gh auth status` confirmando a conta ativa, ex.: `MTR-S`).
+3. **GitHub CLI (`gh`)**: Instalado e autenticado (`gh auth status` confirmando a conta ativa, ex.: `seu-usuario-github`).
 4. **Git**: Git 2.40+ instalado e acessível no PATH do terminal.
 5. **Node.js**: v22.0.0 ou superior (para suporte nativo a ESM e TypeScript).
 
@@ -202,7 +202,7 @@ Antes de testar, confirme que os serviços e ferramentas abaixo estão ativos no
 A imagem Docker é única e reutilizável para todos os seus projetos:
 
 ```powershell
-cd C:\Users\MatheusAlmeida\projects\sandcastle-antigravity
+cd C:\caminho\para\sandcastle-antigravity
 npm run build-image
 ```
 
@@ -217,7 +217,7 @@ docker images sandcastle-agent
 No diretório do `sandcastle-antigravity`, vincule o comando no sistema usando `npm link`:
 
 ```powershell
-cd C:\Users\MatheusAlmeida\projects\sandcastle-antigravity
+cd C:\caminho\para\sandcastle-antigravity
 npm link
 ```
 
@@ -232,7 +232,7 @@ sandcastle-agy --help
 > [!NOTE]
 > **Execução sem `npm link`:** caso não queira registrar o comando globalmente, você pode executar o orquestrador chamando o script diretamente:
 > ```powershell
-> node C:\Users\MatheusAlmeida\projects\sandcastle-antigravity\main.mts <comando>
+> node C:\caminho\para\sandcastle-antigravity\main.mts <comando>
 > ```
 
 ---
@@ -297,7 +297,7 @@ Antes de iniciar qualquer container ou criar branches, o terminal exibirá o res
 ◇  Active Base Branch     : main
 ◇  Protected Branches     : main, master, homol, developer, staging, production
 ◇  Git Author Identity    : Seu Nome <seu-email@dominio.com>
-◇  GitHub User/Token      : MTR-S (token: configured [gh:cli])
+◇  GitHub User/Token      : seu-usuario-github (token: configured [gh:cli])
 ◇  Verification Command   : npm test
 ◇  Issue Label filter     : ready-for-agent
 ◇  Models assigned per phase:

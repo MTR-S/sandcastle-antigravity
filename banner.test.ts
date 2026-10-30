@@ -36,8 +36,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
     baseBranch: "feature/initial",
     protectedBranches: ["main", "master", "homol", "developer"],
     gitIdentity: {
-      name: "Matheus Almeida",
-      email: "matheusalmeidass14@gmail.com",
+      name: "Developer Name",
+      email: "dev@example.com",
     },
     githubAuth: {
       account: "MTR-S",
@@ -66,8 +66,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
         "developer",
       ]);
       assert.deepEqual(config.gitIdentity, {
-        name: "Matheus Almeida",
-        email: "matheusalmeidass14@gmail.com",
+        name: "Developer Name",
+        email: "dev@example.com",
       });
       assert.deepEqual(config.githubAuth, {
         account: "MTR-S",
@@ -98,12 +98,12 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
         baseBranch: "developer",
         protectedBranches: ["main", "master", "homol"],
         gitIdentity: {
-          name: "MTR-S",
-          email: "mtr-s@github.com",
+          name: "Developer Name",
+          email: "dev@example.com",
         },
         githubAuth: {
-          account: "MTR-S",
-          token: "gho_secret",
+          account: "your-github-account",
+          token: "gho_mockSecretToken",
           source: "gh:cli",
         },
         verifyCommand: "npm test",
@@ -121,8 +121,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
       assert.match(summary, /Target Repository Path.*\/projects\/sample-app/i);
       assert.match(summary, /Active Base Branch.*developer/i);
       assert.match(summary, /Protected Branches.*main,\s*master,\s*homol/i);
-      assert.match(summary, /Git Author Identity.*MTR-S\s*<mtr-s@github\.com>/i);
-      assert.match(summary, /GitHub User\/Token.*MTR-S.*\[gh:cli\]/i);
+      assert.match(summary, /Git Author Identity.*Developer Name\s*<dev@example\.com>/i);
+      assert.match(summary, /GitHub User\/Token.*your-github-account.*\[gh:cli\]/i);
       assert.match(summary, /Verification Command.*npm test/i);
       assert.match(summary, /Issue Label.*ready-for-agent/i);
       assert.match(
