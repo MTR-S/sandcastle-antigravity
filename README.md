@@ -31,6 +31,39 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 - **[`docs/adr/0001-host-oauth-session-bridge.md`](./docs/adr/0001-host-oauth-session-bridge.md)**: Architectural Decision Record for Cross-OS Keyring Bridging & Phase-Scoped Models.
 - **[`docs/adr/0002-standalone-multi-repo-cli.md`](./docs/adr/0002-standalone-multi-repo-cli.md)**: Architectural Decision Record for the Standalone Multi-Repo CLI & Interactive Pre-Run Inspection.
 - **[`docs/PRD.md`](./docs/PRD.md)**: Product Requirements Document & Ticket Breakdown for the standalone CLI transition.
+- **[`docs/HOW_TO_TEST.md`](./docs/HOW_TO_TEST.md)**: Step-by-Step Testing & Onboarding Guide (Full walkthrough from scratch for testing on any local project).
+
+---
+
+## 🚀 Quick Start: Using `sandcastle-agy` from Scratch
+
+Want to test `sandcastle-agy` on your local projects right away?
+
+> [!TIP]
+> 📖 **[Read the Complete Step-by-Step Testing Guide (`docs/HOW_TO_TEST.md`)](./docs/HOW_TO_TEST.md)**  
+> *(Guia didático passo a passo completo disponível em Português e Inglês com exemplos para Node/TS e Java Maven/Gradle).*
+
+### At a Glance (3 Simple Steps):
+
+1. **Install & Link Globally** (run once inside `sandcastle-antigravity`):
+   ```bash
+   npm install
+   npm run build-image
+   npm link
+   ```
+
+2. **Diagnose Your Target Project (`doctor`)**:
+   Verify that your host environment and target repository meet all prerequisites:
+   ```bash
+   sandcastle-agy doctor --repo /path/to/target-project
+   ```
+
+3. **Launch the Autonomous Multi-Agent Loop (`run`)**:
+   Run against any local Git repository with an open issue labeled `ready-for-agent`:
+   ```bash
+   sandcastle-agy run --repo /path/to/target-project
+   ```
+   An interactive **Pre-Run Configuration Banner** will confirm or allow you to customize all parameters (Git identity, Base branch, test command, AI models) before launching Docker containers.
 
 ---
 
