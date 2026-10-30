@@ -188,4 +188,33 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       );
     });
   });
+
+  describe("Domain & Architecture Documentation Alignment (Spec #16)", () => {
+    const prdPath = resolve(packageRoot, "docs/PRD.md");
+    const adrPath = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
+    const contextPath = resolve(packageRoot, "CONTEXT.md");
+
+    test("docs/PRD.md documents Ticket #5 for sc-agy shorthand CLI binary alias specification", () => {
+      assert.ok(existsSync(prdPath), "docs/PRD.md must exist");
+      const prd = readFileSync(prdPath, "utf-8");
+      assert.match(prd, /Ticket #5/i, "docs/PRD.md must document Ticket #5");
+      assert.match(prd, /sc-agy/i, "docs/PRD.md must reference sc-agy alias");
+    });
+
+    test("docs/adr/0003-cli-binary-alias.md documents CLI Binary Alias architecture and considered options", () => {
+      assert.ok(existsSync(adrPath), "docs/adr/0003-cli-binary-alias.md must exist");
+      const adr = readFileSync(adrPath, "utf-8");
+      assert.match(adr, /CLI Binary Alias/i, "ADR must define CLI Binary Alias");
+      assert.match(adr, /sc-agy/i, "ADR must reference sc-agy");
+      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+      assert.match(getReadme(), /0003-cli-binary-alias\.md/, "README.md must link to ADR 0003");
+    });
+
+    test("CONTEXT.md defines CLI Binary Alias in domain glossary under CLI Interface & Distribution", () => {
+      assert.ok(existsSync(contextPath), "CONTEXT.md must exist");
+      const context = readFileSync(contextPath, "utf-8");
+      assert.match(context, /CLI Binary Alias/i, "CONTEXT.md must define CLI Binary Alias");
+      assert.match(context, /sc-agy/i, "CONTEXT.md must cite sc-agy");
+    });
+  });
 });

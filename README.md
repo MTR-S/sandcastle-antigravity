@@ -30,6 +30,7 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 - **[`CONTEXT.md`](./CONTEXT.md)**: Canonical domain glossary (*Target Repository*, *Host OAuth Session Bridge*, *Phase Pipeline*, *Base Branch*, *Protected Branches*, *Verification Command*, *Pre-Run Configuration Banner*, *CLI Binary Alias*).
 - **[`docs/adr/0001-host-oauth-session-bridge.md`](./docs/adr/0001-host-oauth-session-bridge.md)**: Architectural Decision Record for Cross-OS Keyring Bridging & Phase-Scoped Models.
 - **[`docs/adr/0002-standalone-multi-repo-cli.md`](./docs/adr/0002-standalone-multi-repo-cli.md)**: Architectural Decision Record for the Standalone Multi-Repo CLI & Interactive Pre-Run Inspection.
+- **[`docs/adr/0003-cli-binary-alias.md`](./docs/adr/0003-cli-binary-alias.md)**: Architectural Decision Record for the Official Shorthand Binary Alias (`sc-agy`) and CLI Argument Normalization.
 - **[`docs/PRD.md`](./docs/PRD.md)**: Product Requirements Document & Ticket Breakdown for the standalone CLI transition.
 - **[`docs/HOW_TO_TEST.md`](./docs/HOW_TO_TEST.md)**: Step-by-Step Testing & Onboarding Guide (Full walkthrough from scratch for testing on any local project).
 

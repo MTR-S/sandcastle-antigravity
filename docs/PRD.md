@@ -56,3 +56,17 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 - **Escopo**:
   - Atualizar `README.md` com instruções de instalação global (`npm link`), uso dos subcomandos (`run`, `rescue`, `doctor`, `build-image`) e exemplos para projetos Java e Node/TS.
   - Garantir 100% da suíte `npm test` e `npm run typecheck` verde.
+
+### Ticket #5: Atalho Oficial da CLI (`sc-agy`) em Paridade com `sandcastle-agy`
+- **Escopo**:
+  - Registrar o atalho executável `sc-agy` no manifesto de distribuição (`package.json` no mapa `bin`) apontando para `./main.mts` em paridade com `sandcastle-agy`.
+  - Normalizar a análise de argumentos da CLI em `cli.ts` para identificar e remover executáveis canônicos e atalhos (`sandcastle-agy`, `sc-agy`) e seus shims de plataforma (`.cmd`, `.ps1`, `.exe`), evitando erros de subcomando desconhecido.
+  - Atualizar a declaração de sintaxe de ajuda na CLI para `Usage: sandcastle-agy | sc-agy <command> [options]`.
+  - Documentar o atalho oficial `sc-agy` no `README.md`, no guia de testes (`docs/HOW_TO_TEST.md`) e registrar o termo canônico `CLI Binary Alias` no glossário de domínio (`CONTEXT.md`).
+- **Critérios de Aceite**:
+  - `npm link` ou instalação global expõe ambos os executáveis (`sandcastle-agy` e `sc-agy`) no PATH sem necessidade de configuração adicional.
+  - Invocação via `sc-agy` aceita exatamente os mesmos subcomandos (`run`, `rescue`, `doctor`, `build-image`, `help`, `version`) e flags (`--repo`, `-r`, `--yes`, `-y`, `--tag`, `-t`, `--build-arg`).
+  - Chamadas em plataformas Windows (`sc-agy.cmd`, `sc-agy.ps1`) não confundem o nome do binário com subcomandos.
+  - Banners interativos, cabeçalhos operacionais e logs preservam a marca canônica Sandcastle Antigravity.
+  - Testes em `cli.test.ts` e `distribution.test.ts` garantem conformidade com o contrato de empacotamento, sintaxe e paridade operacional com 100% dos testes passando.
+
