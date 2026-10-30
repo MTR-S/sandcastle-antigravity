@@ -35,3 +35,9 @@ _Avoid_: API key forwarding, login interativo no container, token em arquivo
 **Pre-Run Configuration Banner**:
 Etapa interativa pré-execução que exibe na CLI todas as opções padrões autodetectadas (Target Repository, conta GitHub, identidade Git, Base Branch, Protected Branches, Verification Command e modelos de cada fase) permitindo confirmação imediata ou edição pontual pelo operador antes de criar worktrees ou containers.
 _Avoid_: execução às cegas, configuração oculta
+
+### CLI Interface & Distribution
+
+**CLI Binary Alias**:
+Atalho executável oficial (`sc-agy`) registrado no manifesto do pacote (`bin`) em paridade comportamental e funcional absoluta de 100% com o binário canônico (`sandcastle-agy`), permitindo que operadores disparem subcomandos e rotinas de automação com o mínimo de digitação sem divergência operacional.
+_Avoid_: atalho não oficial, wrapper divergente, bifurcação de comandos

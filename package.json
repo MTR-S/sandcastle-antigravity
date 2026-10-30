@@ -11,7 +11,8 @@
   "type": "module",
   "description": "Standalone multi-agent orchestrator for Google Antigravity CLI built on top of @ai-hero/sandcastle by Matt Pocock",
   "bin": {
-    "sandcastle-agy": "./main.mts"
+    "sandcastle-agy": "./main.mts",
+    "sc-agy": "./main.mts"
   },
   "scripts": {
     "build-image": "docker build -t sandcastle-agent -f Dockerfile .",

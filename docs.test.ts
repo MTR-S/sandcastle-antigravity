@@ -10,7 +10,23 @@ describe("Sandcastle Antigravity OAuth Guide & Git Isolation", () => {
     ? resolve(REPO_ROOT, "docs")
     : resolve(REPO_ROOT, ".sandcastle/docs");
   const GUIDE_PATH = resolve(DOCS_DIR, "antigravity-oauth-guide.md");
-  const GIT_EXCLUDE_PATH = resolve(REPO_ROOT, ".git/info/exclude");
+  const resolveGitExcludePath = (repoRoot: string): string => {
+    const directPath = resolve(repoRoot, ".git/info/exclude");
+    if (existsSync(directPath)) return directPath;
+    try {
+      const gitPath = execSync("git rev-parse --git-path info/exclude", {
+        cwd: repoRoot,
+        encoding: "utf-8",
+      }).trim();
+      if (gitPath && existsSync(resolve(repoRoot, gitPath))) {
+        return resolve(repoRoot, gitPath);
+      }
+    } catch {
+      // Ignore
+    }
+    return directPath;
+  };
+  const GIT_EXCLUDE_PATH = resolveGitExcludePath(REPO_ROOT);
 
   let cachedGuideContent: string | null = null;
   const getGuideContent = (): string => {

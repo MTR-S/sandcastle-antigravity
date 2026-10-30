@@ -148,6 +148,181 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(code, 1);
       assert.ok(errors.some((e) => e.includes("Unknown subcommand") || e.includes("non-existent-subcommand")));
     });
+
+    describe("Shorthand CLI Binary Alias (sc-agy) & Argument Normalization (Issue #17)", () => {
+      test("parses run command with default options when invoked via sc-agy without args", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+        const parsed = parseCliArgs(["sc-agy"]);
+        assert.equal(parsed.command, "run");
+        assert.equal(parsed.repoPath, undefined);
+        assert.equal(parsed.yes, false);
+      });
+
+      test("parses all subcommands seamlessly via sc-agy", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+
+        // 1. run
+        const runParsed = parseCliArgs(["sc-agy", "run", "--repo", "/path/to/target", "--yes"]);
+        assert.equal(runParsed.command, "run");
+        assert.equal(runParsed.repoPath, "/path/to/target");
+        assert.equal(runParsed.yes, true);
+
+        // 2. rescue
+        const rescueParsed = parseCliArgs(["sc-agy", "rescue", "--repo", "./some/repo"]);
+        assert.equal(rescueParsed.command, "rescue");
+        assert.equal(rescueParsed.repoPath, "./some/repo");
+
+        // 3. doctor
+        const doctorParsed = parseCliArgs(["sc-agy", "doctor", "-r", "./target"]);
+        assert.equal(doctorParsed.command, "doctor");
+        assert.equal(doctorParsed.repoPath, "./target");
+
+        // 4. build-image
+        const buildParsed = parseCliArgs([
+          "sc-agy",
+          "build-image",
+          "--tag",
+          "custom-sandcastle-agent:v2",
+          "--build-arg",
+          "KEY=VAL",
+        ]);
+        assert.equal(buildParsed.command, "build-image");
+        assert.equal(buildParsed.tag, "custom-sandcastle-agent:v2");
+        assert.deepEqual(buildParsed.buildArgs, ["KEY=VAL"]);
+
+        // 5. help
+        assert.equal(parseCliArgs(["sc-agy", "--help"]).command, "help");
+        assert.equal(parseCliArgs(["sc-agy", "-h"]).command, "help");
+        assert.equal(parseCliArgs(["sc-agy", "help"]).command, "help");
+
+        // 6. version
+        assert.equal(parseCliArgs(["sc-agy", "--version"]).command, "version");
+        assert.equal(parseCliArgs(["sc-agy", "-v"]).command, "version");
+        assert.equal(parseCliArgs(["sc-agy", "version"]).command, "version");
+      });
+
+      test("parses short options (-r, -y, -t) identically when invoked via sc-agy", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+        const parsedRun = parseCliArgs(["sc-agy", "-r", "../another-repo", "-y"]);
+        assert.equal(parsedRun.command, "run");
+        assert.equal(parsedRun.repoPath, "../another-repo");
+        assert.equal(parsedRun.yes, true);
+
+        const parsedBuild = parseCliArgs(["sc-agy", "build-image", "-t", "test-tag:dev"]);
+        assert.equal(parsedBuild.command, "build-image");
+        assert.equal(parsedBuild.tag, "test-tag:dev");
+      });
+
+      test("correctly detects and strips platform-specific shims (.cmd, .ps1, .exe) for sc-agy and sandcastle-agy", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+
+        // sc-agy shims
+        assert.equal(parseCliArgs(["sc-agy.cmd", "run", "--yes"]).command, "run");
+        assert.equal(parseCliArgs(["sc-agy.ps1", "rescue", "-r", "/repo"]).command, "rescue");
+        assert.equal(parseCliArgs(["sc-agy.exe", "doctor"]).command, "doctor");
+        assert.equal(parseCliArgs(["sc-agy.cmd", "build-image", "-t", "img:1"]).command, "build-image");
+
+        // sandcastle-agy shims
+        assert.equal(parseCliArgs(["sandcastle-agy.cmd", "run"]).command, "run");
+        assert.equal(parseCliArgs(["sandcastle-agy.ps1", "doctor"]).command, "doctor");
+        assert.equal(parseCliArgs(["sandcastle-agy.exe", "rescue"]).command, "rescue");
+      });
+
+      test("normalizes argument vectors when node runtime path precedes binary alias or shims", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+
+        // POSIX node + sc-agy
+        const posixArgs = parseCliArgs(["/usr/local/bin/node", "/usr/local/bin/sc-agy", "run", "--repo", "/target"]);
+        assert.equal(posixArgs.command, "run");
+        assert.equal(posixArgs.repoPath, "/target");
+
+        // Windows node.exe + sc-agy.cmd
+        const winCmdArgs = parseCliArgs([
+          "C:\\Program Files\\nodejs\\node.exe",
+          "C:\\Users\\user\\AppData\\Roaming\\npm\\sc-agy.cmd",
+          "doctor",
+          "-r",
+          "C:\\target",
+        ]);
+        assert.equal(winCmdArgs.command, "doctor");
+        assert.equal(winCmdArgs.repoPath, "C:\\target");
+
+        // Windows node.exe + sc-agy.ps1
+        const winPsArgs = parseCliArgs([
+          "node.exe",
+          "sc-agy.ps1",
+          "rescue",
+        ]);
+        assert.equal(winPsArgs.command, "rescue");
+      });
+
+      test("identifies unknown command properly when invoked via sc-agy without mistaking binary name", async () => {
+        const { parseCliArgs } = await import("./cli.ts");
+        const parsed = parseCliArgs(["sc-agy", "unknown-command-xyz"]);
+        assert.equal(parsed.command, "unknown");
+        assert.equal(parsed.unknownCommand, "unknown-command-xyz");
+      });
+
+      test("dispatches CLI commands cleanly when invoked with sc-agy alias and shims", async () => {
+        const { dispatchCli } = await import("./cli.ts");
+        let ranHandler = false;
+        let rescuedHandler = false;
+        let doctoredHandler = false;
+        let builtHandler = false;
+
+        const codeRun = await dispatchCli(["sc-agy", "run", "--repo", "/my/repo", "--yes"], {
+          runHandler: async (args) => {
+            ranHandler = true;
+            assert.equal(args.repoPath, "/my/repo");
+            assert.equal(args.yes, true);
+            return 0;
+          },
+        });
+        assert.equal(codeRun, 0);
+        assert.equal(ranHandler, true);
+
+        const codeRescue = await dispatchCli(["sc-agy.cmd", "rescue"], {
+          rescueHandler: async () => {
+            rescuedHandler = true;
+            return 0;
+          },
+        });
+        assert.equal(codeRescue, 0);
+        assert.equal(rescuedHandler, true);
+
+        const codeDoctor = await dispatchCli(["sc-agy.ps1", "doctor"], {
+          doctorHandler: async () => {
+            doctoredHandler = true;
+            return 0;
+          },
+        });
+        assert.equal(codeDoctor, 0);
+        assert.equal(doctoredHandler, true);
+
+        const codeBuild = await dispatchCli(["sc-agy.exe", "build-image"], {
+          buildImageHandler: async () => {
+            builtHandler = true;
+            return 0;
+          },
+        });
+        assert.equal(codeBuild, 0);
+        assert.equal(builtHandler, true);
+
+        const logs: string[] = [];
+        const codeHelp = await dispatchCli(["sc-agy", "--help"], {
+          logger: (msg) => logs.push(msg),
+        });
+        assert.equal(codeHelp, 0);
+        assert.ok(logs.some((l) => l.includes("sandcastle-agy")));
+
+        const versionLogs: string[] = [];
+        const codeVersion = await dispatchCli(["sc-agy", "--version"], {
+          logger: (msg) => versionLogs.push(msg),
+        });
+        assert.equal(codeVersion, 0);
+        assert.ok(versionLogs.some((l) => /0\.1\.0|\d+\.\d+\.\d+/.test(l)));
+      });
+    });
   });
 
   describe("Seam 2: rescue Subcommand Handler", () => {
@@ -558,6 +733,10 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.ok(
         pkg.bin["sandcastle-agy"] === "./main.mts" || pkg.bin["sandcastle-agy"] === "./cli.mts",
         "package.json bin must expose sandcastle-agy pointing to ./main.mts or ./cli.mts",
+      );
+      assert.ok(
+        pkg.bin["sc-agy"] === "./main.mts" || pkg.bin["sc-agy"] === "./cli.mts",
+        "package.json bin must expose sc-agy alias pointing to ./main.mts or ./cli.mts",
       );
     });
   });

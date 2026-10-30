@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import {
@@ -17,6 +18,16 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
 
   const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
   const imageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
+
+  const isDockerAvailable = (): boolean => {
+    try {
+      const res = spawnSync("docker", ["info"], { stdio: "ignore" });
+      return res.status === 0;
+    } catch {
+      return false;
+    }
+  };
+
   const testEnv: Record<string, string> = {
     ...getSandboxEnv({
       GH_TOKEN: "smoke-gh-token-test",
@@ -25,7 +36,11 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
     }),
   };
 
-  test("executes inside containerized sandbox, confirming tool execution and clean exit", async () => {
+  test("executes inside containerized sandbox, confirming tool execution and clean exit", async (t) => {
+    if (!isDockerAvailable()) {
+      t.skip("Skipping containerized smoke test: Docker daemon is unavailable");
+      return;
+    }
     const sandbox = await sandcastle.createSandbox({
       cwd: repoRoot,
       branch: "sandcastle/smoke-sandbox-test",
@@ -143,7 +158,11 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
     }
   });
 
-  test("executes end-to-end task through sandcastle.run with clean exit", async () => {
+  test("executes end-to-end task through sandcastle.run with clean exit", async (t) => {
+    if (!isDockerAvailable()) {
+      t.skip("Skipping containerized smoke test: Docker daemon is unavailable");
+      return;
+    }
     const mockAgyAgent: sandcastle.AgentProvider = {
       name: "antigravity",
       env: {},
@@ -177,7 +196,11 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
     assert.match(runResult.stdout, /DIRECT_RUN_SUCCESS/);
   });
 
-  test("boots with injected OAuth payload, stores into D-Bus secret service, and scrubs environment", async () => {
+  test("boots with injected OAuth payload, stores into D-Bus secret service, and scrubs environment", async (t) => {
+    if (!isDockerAvailable()) {
+      t.skip("Skipping containerized smoke test: Docker daemon is unavailable");
+      return;
+    }
     const mockPayload = JSON.stringify({
       token: {
         access_token: "smoke-oauth-access-token",
@@ -253,7 +276,11 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
     }
   });
 
-  test("runs agent inside Docker sandbox successfully returning response using bridged host OAuth session", async () => {
+  test("runs agent inside Docker sandbox successfully returning response using bridged host OAuth session", async (t) => {
+    if (!isDockerAvailable()) {
+      t.skip("Skipping containerized smoke test: Docker daemon is unavailable");
+      return;
+    }
     const hostCred = extractWindowsCredential();
     const payload = hostCred
       ? formatOAuthPayloadForContainer(hostCred)

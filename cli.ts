@@ -109,23 +109,30 @@ function isKnownCommand(cmd: string): cmd is KnownCliCommand {
   return KNOWN_COMMANDS.has(cmd);
 }
 
+function isRuntimeBinary(arg: string): boolean {
+  const normalized = arg.replace(/\\/g, "/").toLowerCase();
+  const basename = normalized.split("/").pop() ?? "";
+  return /^(?:node|tsx)(?:\.exe)?$/i.test(basename);
+}
+
+function isCliBinaryOrScript(arg: string): boolean {
+  const normalized = arg.replace(/\\/g, "/").toLowerCase();
+  const basename = normalized.split("/").pop() ?? "";
+  const binaryPattern = /^(?:sandcastle-agy|sc-agy)(?:\.(?:cmd|ps1|exe))?$/i;
+  const scriptPattern = /^(?:main|cli)\.(?:mts|ts|js|mjs)(?:\.(?:cmd|ps1|exe))?$/i;
+  return binaryPattern.test(basename) || scriptPattern.test(basename);
+}
+
 /**
  * Parses raw command-line arguments into a structured CliParsedArgs object.
  */
 export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
-  // Strip node and binary if present (e.g. process.argv is ["node", "sandcastle-agy", ...])
+  // Strip node / tsx runtime and binary alias / entrypoint script if present
   let args = [...argv];
-  if (args.length > 0 && (args[0].endsWith("node") || args[0].endsWith("node.exe"))) {
+  if (args.length > 0 && isRuntimeBinary(args[0])) {
     args.shift();
   }
-  if (
-    args.length > 0 &&
-    (args[0].endsWith("main.mts") ||
-      args[0].endsWith("main.ts") ||
-      args[0].endsWith("cli.mts") ||
-      args[0].endsWith("cli.ts") ||
-      args[0].endsWith("sandcastle-agy"))
-  ) {
+  while (args.length > 0 && isCliBinaryOrScript(args[0])) {
     args.shift();
   }
 

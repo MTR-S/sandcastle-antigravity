@@ -1,4 +1,4 @@
-import { test, describe } from "node:test";
+import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import {
@@ -17,6 +17,32 @@ import {
 } from "./target-config.ts";
 
 describe("Target Repository Autodetection Engine (Issue #7)", () => {
+  const envKeys = [
+    "GIT_USER_NAME",
+    "GIT_USER_EMAIL",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_USER",
+    "BASE_BRANCH",
+  ] as const;
+  const savedEnv: Record<string, string | undefined> = {};
+
+  before(() => {
+    for (const key of envKeys) {
+      savedEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  after(() => {
+    for (const key of envKeys) {
+      if (savedEnv[key] !== undefined) {
+        process.env[key] = savedEnv[key];
+      } else {
+        delete process.env[key];
+      }
+    }
+  });
   describe("Seam 1: Tech Stack & Verification Command Detection", () => {
     test("autodetects Java Maven project when pom.xml and mvnw exist", () => {
       const files = new Set(["/repo/pom.xml", "/repo/mvnw"]);

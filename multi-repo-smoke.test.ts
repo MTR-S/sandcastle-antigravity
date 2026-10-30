@@ -120,17 +120,21 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CODING_STANDARDS.md": "# Coding Standards\nStandard Java rules.",
       });
 
+      const dryRunEnv: Record<string, string | undefined> = {
+        ...process.env,
+        SANDCASTLE_DRY_RUN: "1",
+        GH_TOKEN: "mock-gh-token-test",
+      };
+      delete dryRunEnv.GIT_USER_NAME;
+      delete dryRunEnv.GIT_USER_EMAIL;
+
       const proc = spawnSync(
         process.execPath,
         ["main.mts", "run", "--repo", mavenRepoPath, "--yes"],
         {
           cwd: packageRoot,
           encoding: "utf-8",
-          env: {
-            ...process.env,
-            SANDCASTLE_DRY_RUN: "1",
-            GH_TOKEN: "mock-gh-token-test",
-          },
+          env: dryRunEnv,
         },
       );
 
@@ -168,17 +172,21 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CONTEXT.md": "# Gradle Context\n",
       });
 
+      const dryRunEnv: Record<string, string | undefined> = {
+        ...process.env,
+        SANDCASTLE_DRY_RUN: "1",
+        GH_TOKEN: "mock-gh-token-test",
+      };
+      delete dryRunEnv.GIT_USER_NAME;
+      delete dryRunEnv.GIT_USER_EMAIL;
+
       const proc = spawnSync(
         process.execPath,
         ["main.mts", "run", "--repo", gradleRepoPath, "--yes"],
         {
           cwd: packageRoot,
           encoding: "utf-8",
-          env: {
-            ...process.env,
-            SANDCASTLE_DRY_RUN: "1",
-            GH_TOKEN: "mock-gh-token-test",
-          },
+          env: dryRunEnv,
         },
       );
 
@@ -214,17 +222,21 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CODING_STANDARDS.md": "# Standards\n",
       });
 
+      const dryRunEnv: Record<string, string | undefined> = {
+        ...process.env,
+        SANDCASTLE_DRY_RUN: "1",
+        GH_TOKEN: "mock-gh-token-test",
+      };
+      delete dryRunEnv.GIT_USER_NAME;
+      delete dryRunEnv.GIT_USER_EMAIL;
+
       const proc = spawnSync(
         process.execPath,
         ["main.mts", "run", "--repo", nodeRepoPath, "--yes"],
         {
           cwd: packageRoot,
           encoding: "utf-8",
-          env: {
-            ...process.env,
-            SANDCASTLE_DRY_RUN: "1",
-            GH_TOKEN: "mock-gh-token-test",
-          },
+          env: dryRunEnv,
         },
       );
 

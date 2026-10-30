@@ -31,6 +31,28 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       );
     });
 
+    test("exports shorthand CLI alias sc-agy pointing to executable entrypoint alongside sandcastle-agy", () => {
+      assert.ok(existsSync(pkgJsonPath), "package.json must exist");
+      const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+
+      assert.ok(pkg.bin, "package.json must define bin entry");
+      assert.equal(
+        pkg.bin["sc-agy"],
+        "./main.mts",
+        "bin['sc-agy'] must point to ./main.mts",
+      );
+
+      // Verify entrypoint file exists and has shebang
+      const entrypointPath = resolve(packageRoot, pkg.bin["sc-agy"]);
+      assert.ok(existsSync(entrypointPath), "Binary entrypoint file for sc-agy must exist");
+      const entryContent = readFileSync(entrypointPath, "utf-8");
+      assert.match(
+        entryContent,
+        /^#!\/usr\/bin\/env node/m,
+        "CLI entrypoint must begin with node shebang",
+      );
+    });
+
     test("defines required test and build scripts", () => {
       const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
       assert.ok(pkg.scripts["test"], "must define test script");
