@@ -86,6 +86,17 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
   });
 
   describe("Seam 2: Multi-Repository Orchestration Execution & Dry-Run Dispatch", () => {
+    function createDryRunEnv(): Record<string, string | undefined> {
+      const dryRunEnv: Record<string, string | undefined> = {
+        ...process.env,
+        SANDCASTLE_DRY_RUN: "1",
+        GH_TOKEN: "mock-gh-token-test",
+      };
+      delete dryRunEnv.GIT_USER_NAME;
+      delete dryRunEnv.GIT_USER_EMAIL;
+      return dryRunEnv;
+    }
+
     function createMockGitRepo(
       repoPath: string,
       authorName: string,
@@ -120,13 +131,7 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CODING_STANDARDS.md": "# Coding Standards\nStandard Java rules.",
       });
 
-      const dryRunEnv: Record<string, string | undefined> = {
-        ...process.env,
-        SANDCASTLE_DRY_RUN: "1",
-        GH_TOKEN: "mock-gh-token-test",
-      };
-      delete dryRunEnv.GIT_USER_NAME;
-      delete dryRunEnv.GIT_USER_EMAIL;
+      const dryRunEnv = createDryRunEnv();
 
       const proc = spawnSync(
         process.execPath,
@@ -172,13 +177,7 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CONTEXT.md": "# Gradle Context\n",
       });
 
-      const dryRunEnv: Record<string, string | undefined> = {
-        ...process.env,
-        SANDCASTLE_DRY_RUN: "1",
-        GH_TOKEN: "mock-gh-token-test",
-      };
-      delete dryRunEnv.GIT_USER_NAME;
-      delete dryRunEnv.GIT_USER_EMAIL;
+      const dryRunEnv = createDryRunEnv();
 
       const proc = spawnSync(
         process.execPath,
@@ -222,13 +221,7 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
         "CODING_STANDARDS.md": "# Standards\n",
       });
 
-      const dryRunEnv: Record<string, string | undefined> = {
-        ...process.env,
-        SANDCASTLE_DRY_RUN: "1",
-        GH_TOKEN: "mock-gh-token-test",
-      };
-      delete dryRunEnv.GIT_USER_NAME;
-      delete dryRunEnv.GIT_USER_EMAIL;
+      const dryRunEnv = createDryRunEnv();
 
       const proc = spawnSync(
         process.execPath,

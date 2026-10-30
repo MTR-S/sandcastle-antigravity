@@ -105,22 +105,25 @@ const KNOWN_COMMANDS = new Set<string>([
   "help",
 ]);
 
+const RUNTIME_BINARY_PATTERN = /^(?:node|tsx)(?:\.exe)?$/i;
+const CLI_BINARY_OR_SCRIPT_PATTERN =
+  /^(?:sandcastle-agy|sc-agy|(?:main|cli)\.(?:mts|ts|js|mjs))(?:\.(?:cmd|ps1|exe))?$/i;
+
 function isKnownCommand(cmd: string): cmd is KnownCliCommand {
   return KNOWN_COMMANDS.has(cmd);
 }
 
+function extractBasename(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  return normalized.split("/").pop() ?? "";
+}
+
 function isRuntimeBinary(arg: string): boolean {
-  const normalized = arg.replace(/\\/g, "/").toLowerCase();
-  const basename = normalized.split("/").pop() ?? "";
-  return /^(?:node|tsx)(?:\.exe)?$/i.test(basename);
+  return RUNTIME_BINARY_PATTERN.test(extractBasename(arg));
 }
 
 function isCliBinaryOrScript(arg: string): boolean {
-  const normalized = arg.replace(/\\/g, "/").toLowerCase();
-  const basename = normalized.split("/").pop() ?? "";
-  const binaryPattern = /^(?:sandcastle-agy|sc-agy)(?:\.(?:cmd|ps1|exe))?$/i;
-  const scriptPattern = /^(?:main|cli)\.(?:mts|ts|js|mjs)(?:\.(?:cmd|ps1|exe))?$/i;
-  return binaryPattern.test(basename) || scriptPattern.test(basename);
+  return CLI_BINARY_OR_SCRIPT_PATTERN.test(extractBasename(arg));
 }
 
 /**
@@ -205,9 +208,12 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     }
   }
 
-  const command: CliCommand = unknownCommand
-    ? "unknown"
-    : (explicitCommand ?? "run");
+  let command: CliCommand = "run";
+  if (unknownCommand) {
+    command = "unknown";
+  } else if (explicitCommand) {
+    command = explicitCommand;
+  }
 
   return {
     command,

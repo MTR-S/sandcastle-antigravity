@@ -19,13 +19,17 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
   const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
   const imageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
 
+  let dockerAvailable: boolean | undefined;
   const isDockerAvailable = (): boolean => {
-    try {
-      const res = spawnSync("docker", ["info"], { stdio: "ignore" });
-      return res.status === 0;
-    } catch {
-      return false;
+    if (dockerAvailable === undefined) {
+      try {
+        const res = spawnSync("docker", ["info"], { stdio: "ignore" });
+        dockerAvailable = res.status === 0;
+      } catch {
+        dockerAvailable = false;
+      }
     }
+    return dockerAvailable;
   };
 
   const testEnv: Record<string, string> = {
