@@ -47,12 +47,18 @@ Inside the `sandcastle-antigravity` root directory, link the binary to your glob
 npm link
 ```
 
-Verify that `sandcastle-agy` is accessible from any terminal window:
+Verify that `sandcastle-agy` and its official shorthand alias `sc-agy` are accessible from any terminal window:
 ```bash
 sandcastle-agy --version
 # Output: sandcastle-agy v0.1.0
 
+# Shorthand alias:
+sc-agy --version
+# Output: sandcastle-agy v0.1.0
+
 sandcastle-agy --help
+# Or:
+sc-agy --help
 ```
 
 > [!NOTE]
@@ -60,6 +66,9 @@ sandcastle-agy --help
 > ```bash
 > node C:\path\to\sandcastle-antigravity\main.mts <command>
 > ```
+
+> [!TIP]
+> **Official Shorthand Alias (`sc-agy`):** You can use `sc-agy` as an exact drop-in shorthand alias for `sandcastle-agy` across all commands (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) with complete parity.
 
 ---
 
@@ -88,10 +97,14 @@ Before initiating autonomous agents, validate that the target repository and hos
 ```bash
 # Option A: Specifying target path via --repo
 sandcastle-agy doctor --repo "C:\path\to\target-repo"
+# Or using shorthand alias:
+sc-agy doctor --repo "C:\path\to\target-repo"
 
 # Option B: Running from inside target project directory
 cd "C:\path\to\target-repo"
 sandcastle-agy doctor
+# Or using shorthand alias:
+sc-agy doctor
 ```
 
 What `doctor` verifies:
@@ -109,6 +122,8 @@ Launch the 4-phase orchestration loop against your target project:
 
 ```bash
 sandcastle-agy run --repo "C:\path\to\target-repo"
+# Or using shorthand alias:
+sc-agy run --repo "C:\path\to\target-repo"
 ```
 
 #### Pre-Run Configuration Banner (Interactive Gate)
@@ -145,6 +160,8 @@ Before provisioning any containers or worktrees, an interactive banner displays 
 > **Non-interactive mode (CI/CD):** Use the `--yes` (or `-y`) flag to bypass the banner:
 > ```bash
 > sandcastle-agy run --repo "C:\path\to\target-repo" --yes
+> # Or using shorthand alias:
+> sc-agy run --repo "C:\path\to\target-repo" -y
 > ```
 
 ---
@@ -166,6 +183,8 @@ If execution is interrupted (`Ctrl+C`) or encounters an unexpected failure:
 
 ```bash
 sandcastle-agy rescue --repo "C:\path\to\target-repo"
+# Or using shorthand alias:
+sc-agy rescue --repo "C:\path\to\target-repo"
 ```
 
 What `rescue` does automatically:
@@ -212,7 +231,7 @@ docker images sandcastle-agent
 # Deve listar a imagem 'sandcastle-agent:latest'
 ```
 
-#### Passo 2.2: Disponibilizar o binário `sandcastle-agy` globalmente
+#### Passo 2.2: Disponibilizar o binário `sandcastle-agy` e o atalho `sc-agy` globalmente
 
 No diretório do `sandcastle-antigravity`, vincule o comando no sistema usando `npm link`:
 
@@ -221,12 +240,18 @@ cd C:\caminho\para\sandcastle-antigravity
 npm link
 ```
 
-Teste se o executável ficou acessível globalmente:
+Teste se o executável canônico e o atalho oficial ficaram acessíveis globalmente:
 ```powershell
 sandcastle-agy --version
 # Saída esperada: sandcastle-agy v0.1.0
 
+# Ou via atalho oficial sc-agy:
+sc-agy --version
+# Saída esperada: sandcastle-agy v0.1.0
+
 sandcastle-agy --help
+# Ou:
+sc-agy --help
 ```
 
 > [!NOTE]
@@ -234,6 +259,9 @@ sandcastle-agy --help
 > ```powershell
 > node C:\caminho\para\sandcastle-antigravity\main.mts <comando>
 > ```
+
+> [!TIP]
+> **Atalho Oficial (`sc-agy`):** Você pode utilizar o comando `sc-agy` em substituição direta a `sandcastle-agy` em todas as operações (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) com total paridade para agilizar testes e execuções repetidas.
 
 ---
 
@@ -261,12 +289,14 @@ O Sandcastle Antigravity opera contra repositórios locais existentes. Certifiqu
 Antes de disparar a execução, valide se todos os pré-requisitos estão saudáveis para o projeto alvo:
 
 ```powershell
-# Opção A: Passando o caminho via flag --repo
+# Opção A: Passando o caminho via flag --repo (canônico ou atalho)
 sandcastle-agy doctor --repo "C:\caminho\para\seu-projeto"
+sc-agy doctor --repo "C:\caminho\para\seu-projeto"
 
 # Opção B: Executando dentro da pasta do projeto
 cd "C:\caminho\para\seu-projeto"
 sandcastle-agy doctor
+sc-agy doctor
 ```
 
 #### O que o `doctor` valida:
@@ -284,6 +314,8 @@ Para iniciar o ciclo de agentes contra o projeto alvo:
 
 ```powershell
 sandcastle-agy run --repo "C:\caminho\para\seu-projeto"
+# Ou utilizando o atalho sc-agy:
+sc-agy run --repo "C:\caminho\para\seu-projeto"
 ```
 
 #### Painel Interativo de Pré-Execução (Banner Gate)
@@ -320,6 +352,8 @@ Antes de iniciar qualquer container ou criar branches, o terminal exibirá o res
 > **Modo não-interativo (CI/CD ou scripts):** passe a flag `--yes` (ou `-y`) para pular o banner e iniciar com os defaults autodetectados:
 > ```powershell
 > sandcastle-agy run --repo "C:\caminho\para\seu-projeto" --yes
+> # Ou utilizando o atalho sc-agy:
+> sc-agy run --repo "C:\caminho\para\seu-projeto" -y
 > ```
 
 ---
@@ -341,6 +375,8 @@ Se você interromper a execução com `Ctrl+C` ou ocorrer uma falha inesperada:
 
 ```powershell
 sandcastle-agy rescue --repo "C:\caminho\para\seu-projeto"
+# Ou via atalho sc-agy:
+sc-agy rescue --repo "C:\caminho\para\seu-projeto"
 ```
 
 #### O que o utilitário `rescue` faz automaticamente:

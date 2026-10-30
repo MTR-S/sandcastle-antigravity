@@ -122,5 +122,52 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       assert.match(readme, /@ai-hero\/sandcastle/i, "Must preserve @ai-hero/sandcastle attribution");
       assert.match(readme, /MIT/i, "Must cite MIT License");
     });
+
+    test("documents sc-agy official shorthand alias with informative callout and usage syntax", () => {
+      assert.match(readme, /sc-agy/i, "Must cite sc-agy binary alias");
+      assert.match(
+        readme,
+        /sandcastle-agy\s+\|\s+sc-agy\s+<command>\s+\[options\]/,
+        "Must display usage syntax with 'sandcastle-agy | sc-agy <command> [options]'",
+      );
+      assert.match(
+        readme,
+        />\s*\[!(NOTE|TIP|IMPORTANT)\][\s\S]*?sc-agy/i,
+        "Must contain an informative callout highlighting sc-agy shorthand alias",
+      );
+    });
+  });
+
+  describe("docs/HOW_TO_TEST.md Shorthand Alias & Manual Verification Guide (Issue #18)", () => {
+    const howToTestPath = resolve(packageRoot, "docs/HOW_TO_TEST.md");
+    let howToTest: string;
+
+    test("reads docs/HOW_TO_TEST.md content", () => {
+      assert.ok(existsSync(howToTestPath), "docs/HOW_TO_TEST.md must exist");
+      howToTest = readFileSync(howToTestPath, "utf-8");
+      assert.ok(howToTest.length > 2000, "docs/HOW_TO_TEST.md must be comprehensive");
+    });
+
+    test("documents testing and manual verification using both sandcastle-agy and sc-agy", () => {
+      assert.match(howToTest, /sandcastle-agy/i, "Must cite sandcastle-agy");
+      assert.match(howToTest, /sc-agy/i, "Must cite sc-agy");
+      assert.match(
+        howToTest,
+        /sc-agy\s+(doctor|run|rescue|build-image|--help|--version)/i,
+        "Must document sc-agy commands for testing and manual verification",
+      );
+    });
+  });
+
+  describe("CLI Help Usage Syntax & Compliance (Issue #18)", () => {
+    test("formatCliHelp declares syntax 'Usage: sandcastle-agy | sc-agy <command> [options]'", async () => {
+      const { formatCliHelp } = await import("./cli.ts");
+      const help = formatCliHelp();
+      assert.match(
+        help,
+        /Usage:\s*\n\s*sandcastle-agy \| sc-agy <command> \[options\]/,
+        "formatCliHelp must declare syntax 'Usage: sandcastle-agy | sc-agy <command> [options]'",
+      );
+    });
   });
 });

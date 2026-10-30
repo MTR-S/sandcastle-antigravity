@@ -83,10 +83,17 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       });
       assert.equal(code, 0);
       assert.ok(logs.some((l) => l.includes("sandcastle-agy")));
+      assert.ok(logs.some((l) => l.includes("sc-agy")));
       assert.ok(logs.some((l) => l.includes("run")));
       assert.ok(logs.some((l) => l.includes("rescue")));
       assert.ok(logs.some((l) => l.includes("doctor")));
       assert.ok(logs.some((l) => l.includes("build-image")));
+    });
+
+    test("formatCliHelp declares usage syntax with sc-agy shorthand alias", async () => {
+      const { formatCliHelp } = await import("./cli.ts");
+      const help = formatCliHelp();
+      assert.match(help, /Usage:\s*\n\s*sandcastle-agy \| sc-agy <command> \[options\]/);
     });
 
     test("dispatches version command to logger and returns 0", async () => {

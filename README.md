@@ -19,7 +19,7 @@ All credit for the core sandbox orchestration engine, git worktree lifecycle man
 
 1. **Google Antigravity CLI (`agy`) Agent Provider ([`antigravity.ts`](./antigravity.ts))**: Native implementation of the Sandcastle `AgentProvider` contract for `agy --output-format stream-json`, supporting role-scoped model routing (`PLANNER_MODEL`, `IMPLEMENTER_MODEL`, `REVIEWER_MODEL`, `MERGER_MODEL`) and reasoning effort levels (`low`, `medium`, `high`).
 2. **Host OAuth Session Bridge ([`auth-preflight.ts`](./auth-preflight.ts) & [`entrypoint.sh`](./entrypoint.sh))**: Bridges your authenticated Google Antigravity OAuth session from the Windows Credential Manager (`gemini:antigravity`) strictly in memory into a headless Linux D-Bus + GNOME Keyring Secret Service inside the Docker sandbox—eliminating static API keys (`GEMINI_API_KEY`).
-3. **Standalone Multi-Repository CLI (`sandcastle-agy`)**: Designed to run externally against any local Java or Node/TypeScript target repository with an interactive pre-run configuration summary, dynamic Git/GitHub identity injection, zero-footprint target repository guarantees, and built-in container/worktree rescue utilities.
+3. **Standalone Multi-Repository CLI (`sandcastle-agy` / `sc-agy`)**: Designed to run externally against any local Java or Node/TypeScript target repository with an interactive pre-run configuration summary, dynamic Git/GitHub identity injection, zero-footprint target repository guarantees, and built-in container/worktree rescue utilities.
 
 See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution details.
 
@@ -27,7 +27,7 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 
 ## Architecture & Domain Documentation
 
-- **[`CONTEXT.md`](./CONTEXT.md)**: Canonical domain glossary (*Target Repository*, *Host OAuth Session Bridge*, *Phase Pipeline*, *Base Branch*, *Protected Branches*, *Verification Command*, *Pre-Run Configuration Banner*).
+- **[`CONTEXT.md`](./CONTEXT.md)**: Canonical domain glossary (*Target Repository*, *Host OAuth Session Bridge*, *Phase Pipeline*, *Base Branch*, *Protected Branches*, *Verification Command*, *Pre-Run Configuration Banner*, *CLI Binary Alias*).
 - **[`docs/adr/0001-host-oauth-session-bridge.md`](./docs/adr/0001-host-oauth-session-bridge.md)**: Architectural Decision Record for Cross-OS Keyring Bridging & Phase-Scoped Models.
 - **[`docs/adr/0002-standalone-multi-repo-cli.md`](./docs/adr/0002-standalone-multi-repo-cli.md)**: Architectural Decision Record for the Standalone Multi-Repo CLI & Interactive Pre-Run Inspection.
 - **[`docs/PRD.md`](./docs/PRD.md)**: Product Requirements Document & Ticket Breakdown for the standalone CLI transition.
@@ -56,12 +56,16 @@ Want to test `sandcastle-agy` on your local projects right away?
    Verify that your host environment and target repository meet all prerequisites:
    ```bash
    sandcastle-agy doctor --repo /path/to/target-project
+   # Or using the shorthand alias:
+   sc-agy doctor --repo /path/to/target-project
    ```
 
 3. **Launch the Autonomous Multi-Agent Loop (`run`)**:
    Run against any local Git repository with an open issue labeled `ready-for-agent`:
    ```bash
    sandcastle-agy run --repo /path/to/target-project
+   # Or using the shorthand alias:
+   sc-agy run --repo /path/to/target-project
    ```
    An interactive **Pre-Run Configuration Banner** will confirm or allow you to customize all parameters (Git identity, Base branch, test command, AI models) before launching Docker containers.
 
@@ -96,13 +100,19 @@ npm run build-image
 npm link
 ```
 
-Verify that the global binary is available in your PATH:
+Verify that both the canonical binary and shorthand alias are available in your PATH:
 
 ```bash
 sandcastle-agy --version
 # Output: sandcastle-agy v0.1.0
 
+# Shorthand alias:
+sc-agy --version
+# Output: sandcastle-agy v0.1.0
+
 sandcastle-agy --help
+# Or:
+sc-agy --help
 ```
 
 Alternatively, you can install globally from the project folder:
@@ -117,9 +127,12 @@ npm install -g .
 
 `sandcastle-agy` provides four primary operational subcommands:
 
+> [!NOTE]
+> **Official Shorthand Alias (`sc-agy`):** You can use `sc-agy` as an official shorthand alias in place of `sandcastle-agy` across all commands and flags with complete parity (e.g. `sc-agy run`, `sc-agy doctor`, `sc-agy rescue`, `sc-agy build-image`).
+
 ```
 Usage:
-  sandcastle-agy <command> [options]
+  sandcastle-agy | sc-agy <command> [options]
 
 Commands:
   run          Run the 4-phase multi-agent orchestrator loop against a target repository
@@ -136,19 +149,25 @@ Options:
   --version, -v      Show version number
 ```
 
-### 1. `sandcastle-agy run [--repo <path>] [--yes]`
+### 1. `sandcastle-agy run [--repo <path>] [--yes]` (or `sc-agy run`)
 
 Runs the four-phase autonomous orchestration loop (`Plan → Implement → Review → Merge`) against any external Target Repository.
 
 ```bash
 # Run against the current directory
 sandcastle-agy run
+# Or with shorthand:
+sc-agy run
 
 # Run against an external Java or Node repository
 sandcastle-agy run --repo /path/to/target-repo
+# Or with shorthand:
+sc-agy run -r /path/to/target-repo
 
 # Run non-interactively in CI/CD or automation
 sandcastle-agy run --repo /path/to/target-repo --yes
+# Or with shorthand:
+sc-agy run -r /path/to/target-repo -y
 ```
 
 #### Pre-Run Configuration Banner & Defaults Editor
@@ -190,12 +209,14 @@ Target repositories remain completely clean:
 
 ---
 
-### 2. `sandcastle-agy rescue [--repo <path>]`
+### 2. `sandcastle-agy rescue [--repo <path>]` (or `sc-agy rescue`)
 
 Fast-recovery utility when an agent loop is interrupted or fails:
 
 ```bash
 sandcastle-agy rescue --repo /path/to/target-repo
+# Or using shorthand alias:
+sc-agy rescue -r /path/to/target-repo
 ```
 
 What `rescue` does automatically:
@@ -205,12 +226,14 @@ What `rescue` does automatically:
 
 ---
 
-### 3. `sandcastle-agy doctor [--repo <path>]`
+### 3. `sandcastle-agy doctor [--repo <path>]` (or `sc-agy doctor`)
 
 Validates all developer environment prerequisites before running:
 
 ```bash
 sandcastle-agy doctor --repo /path/to/target-repo
+# Or using shorthand alias:
+sc-agy doctor -r /path/to/target-repo
 ```
 
 Checks:
@@ -222,15 +245,18 @@ Checks:
 
 ---
 
-### 4. `sandcastle-agy build-image [--tag <image-name>] [--build-arg KEY=VALUE]`
+### 4. `sandcastle-agy build-image [--tag <image-name>] [--build-arg KEY=VALUE]` (or `sc-agy build-image`)
 
 Compiles the container image locally:
 
 ```bash
 sandcastle-agy build-image
+# Or using shorthand alias:
+sc-agy build-image
 
 # Custom tag or build argument
 sandcastle-agy build-image --tag my-sandcastle-agent:latest
+sc-agy build-image --tag my-sandcastle-agent:latest
 ```
 
 ---

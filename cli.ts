@@ -232,7 +232,7 @@ export function formatCliHelp(): string {
     "sandcastle-agy - Standalone Multi-Agent Orchestrator for Google Antigravity CLI",
     "",
     "Usage:",
-    "  sandcastle-agy <command> [options]",
+    "  sandcastle-agy | sc-agy <command> [options]",
     "",
     "Commands:",
     "  run          Run the 4-phase multi-agent orchestrator loop against a target repository",
