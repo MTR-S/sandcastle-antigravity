@@ -10,7 +10,7 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 2. **Suporte Multi-Conta e Identidade Git Dinâmica**: Remover identidades fixas da imagem Docker e herdar dinamicamente `user.name`, `user.email` e a conta/token do GitHub (`MTR-S` pessoal vs. outras contas) em tempo de execução.
 3. **Autodetecção Java & Node/TS + Prompts Parametrizados**: Detectar automaticamente o comando de build/teste (`./mvnw test-compile && ./mvnw test`, `./gradlew test`, `npm test`), montar caches do host (`~/.m2`, `~/.npm`) e parametrizar os prompts para respeitar o `AGENTS.md` / `CONTEXT.md` / `CODING_STANDARDS.md` do repositório alvo.
 4. **Painel Interativo de Confirmação e Edição de Defaults (`@clack/prompts`)**: Exibir claramente todas as opções padrões selecionadas (branch base, branches protegidas, conta do GitHub, identidade Git, comando de verificação, label das issues e modelos por fase) antes de iniciar, permitindo confirmar com 1 tecla ou editar qualquer opção ali mesmo no terminal.
-5. **CLI Unificada (`run`, `rescue`, `doctor`, `build-image`)**: Incorporar o utilitário de resgate (`rescue-sandcastle.ps1`) e diagnóstico de pré-voo diretamente como subcomandos nativos da CLI.
+5. **CLI Unificada (`run`, `rescue`, `doctor`, `build-image`) e Atalho Oficial (`sc-agy`)**: Incorporar o utilitário de resgate (`rescue-sandcastle.ps1`) e diagnóstico de pré-voo diretamente como subcomandos nativos da CLI, disponibilizando o atalho executável `sc-agy` em 100% de paridade comportamental com `sandcastle-agy`.
 
 ---
 

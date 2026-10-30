@@ -9,3 +9,11 @@ Both `sandcastle-agy` and `sc-agy` point to the identical entrypoint script (`./
 1. **Shell-Specific Wrapper or Shell Aliases (`~/.bashrc`, PowerShell profiles)**: Rejected because user-level aliases require manual workstation configuration, fail in non-interactive CI scripts or subshells, and lack cross-platform consistency.
 2. **Short Single-Letter Alias (e.g., `sc`)**: Rejected due to high risk of naming collisions in system `PATH` on Linux and Windows (e.g., Windows Service Controller `sc.exe`).
 3. **Dual Binary Registry with Normalization Seam (chosen)**: Exports both `sandcastle-agy` and `sc-agy` in `package.json` `bin` mapping, sharing a single entrypoint and test suite with zero divergence in subcommands, flags, or container orchestration logic.
+
+## Consequences
+
+- **Ergonomic Operator Workflow**: Reduces keystroke fatigue and typographical error rates during high-frequency CLI workflows without risking naming collisions in system `PATH`.
+- **Zero Behavioral Divergence**: Both executables invoke the identical entrypoint (`./main.mts`) and CLI argument normalization seam, guaranteeing 100% feature and flag parity.
+- **Cross-Platform Argument Normalization**: Normalizes platform wrapper extensions (`.cmd`, `.ps1`, `.exe`) transparently, eliminating positional parsing mismatches across Linux, macOS, and Windows.
+- **Unified Distribution & Maintenance**: Dual `bin` registration in `package.json` shares a single codebase, preventing out-of-sync wrapper scripts or fragmented test suites.
+

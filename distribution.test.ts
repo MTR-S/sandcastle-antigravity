@@ -28,6 +28,37 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
     return cachedHowToTest;
   };
 
+  const prdPath = resolve(packageRoot, "docs/PRD.md");
+  const adr0003Path = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
+  const contextPath = resolve(packageRoot, "CONTEXT.md");
+
+  let cachedPrd: string | null = null;
+  const getPrd = (): string => {
+    if (cachedPrd === null) {
+      assert.ok(existsSync(prdPath), "docs/PRD.md must exist");
+      cachedPrd = readFileSync(prdPath, "utf-8");
+    }
+    return cachedPrd;
+  };
+
+  let cachedAdr0003: string | null = null;
+  const getAdr0003 = (): string => {
+    if (cachedAdr0003 === null) {
+      assert.ok(existsSync(adr0003Path), "docs/adr/0003-cli-binary-alias.md must exist");
+      cachedAdr0003 = readFileSync(adr0003Path, "utf-8");
+    }
+    return cachedAdr0003;
+  };
+
+  let cachedContext: string | null = null;
+  const getContext = (): string => {
+    if (cachedContext === null) {
+      assert.ok(existsSync(contextPath), "CONTEXT.md must exist");
+      cachedContext = readFileSync(contextPath, "utf-8");
+    }
+    return cachedContext;
+  };
+
   describe("package.json CLI Bin & Scripts Configuration", () => {
     test("exports standalone CLI binary sandcastle-agy pointing to executable entrypoint", () => {
       assert.ok(existsSync(pkgJsonPath), "package.json must exist");
@@ -190,29 +221,23 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   });
 
   describe("Domain & Architecture Documentation Alignment (Spec #16)", () => {
-    const prdPath = resolve(packageRoot, "docs/PRD.md");
-    const adrPath = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
-    const contextPath = resolve(packageRoot, "CONTEXT.md");
-
     test("docs/PRD.md documents Ticket #5 for sc-agy shorthand CLI binary alias specification", () => {
-      assert.ok(existsSync(prdPath), "docs/PRD.md must exist");
-      const prd = readFileSync(prdPath, "utf-8");
+      const prd = getPrd();
       assert.match(prd, /Ticket #5/i, "docs/PRD.md must document Ticket #5");
       assert.match(prd, /sc-agy/i, "docs/PRD.md must reference sc-agy alias");
     });
 
-    test("docs/adr/0003-cli-binary-alias.md documents CLI Binary Alias architecture and considered options", () => {
-      assert.ok(existsSync(adrPath), "docs/adr/0003-cli-binary-alias.md must exist");
-      const adr = readFileSync(adrPath, "utf-8");
+    test("docs/adr/0003-cli-binary-alias.md documents CLI Binary Alias architecture, considered options, and consequences", () => {
+      const adr = getAdr0003();
       assert.match(adr, /CLI Binary Alias/i, "ADR must define CLI Binary Alias");
       assert.match(adr, /sc-agy/i, "ADR must reference sc-agy");
       assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+      assert.match(adr, /Consequences/i, "ADR must outline consequences");
       assert.match(getReadme(), /0003-cli-binary-alias\.md/, "README.md must link to ADR 0003");
     });
 
     test("CONTEXT.md defines CLI Binary Alias in domain glossary under CLI Interface & Distribution", () => {
-      assert.ok(existsSync(contextPath), "CONTEXT.md must exist");
-      const context = readFileSync(contextPath, "utf-8");
+      const context = getContext();
       assert.match(context, /CLI Binary Alias/i, "CONTEXT.md must define CLI Binary Alias");
       assert.match(context, /sc-agy/i, "CONTEXT.md must cite sc-agy");
     });

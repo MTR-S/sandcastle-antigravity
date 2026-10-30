@@ -18,7 +18,8 @@ Single-context repo:
 ├── CONTEXT.md
 ├── docs/adr/
 │   ├── 0001-host-oauth-session-bridge.md
-│   └── 0002-standalone-multi-repo-cli.md
+│   ├── 0002-standalone-multi-repo-cli.md
+│   └── 0003-cli-binary-alias.md
 ```
 
 ## Use the glossary's vocabulary
