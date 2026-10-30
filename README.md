@@ -35,13 +35,13 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 
 ---
 
-## 🚀 Quick Start: Using `sandcastle-agy` from Scratch
+## Quick Start: Using `sandcastle-agy` from Scratch
 
 Want to test `sandcastle-agy` on your local projects right away?
 
 > [!TIP]
 > 📖 **[Read the Complete Step-by-Step Testing Guide (`docs/HOW_TO_TEST.md`)](./docs/HOW_TO_TEST.md)**  
-> *(Guia didático passo a passo completo disponível em Português e Inglês com exemplos para Node/TS e Java Maven/Gradle).*
+> *(Complete, step-by-step instructional guide available in Portuguese and English, with examples for Node/TS and Java Maven/Gradle).*
 
 ### At a Glance (3 Simple Steps):
 
