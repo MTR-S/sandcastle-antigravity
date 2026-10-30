@@ -256,6 +256,7 @@ sc-agy build-image
 
 # Custom tag or build argument
 sandcastle-agy build-image --tag my-sandcastle-agent:latest
+# Or using shorthand alias:
 sc-agy build-image --tag my-sandcastle-agent:latest
 ```
 

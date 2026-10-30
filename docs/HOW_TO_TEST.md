@@ -41,6 +41,9 @@ docker images sandcastle-agent
 
 #### Step 2.2: Link the CLI Binary Globally
 
+> [!TIP]
+> **Official Shorthand Alias (`sc-agy`):** You can use `sc-agy` as an exact drop-in shorthand alias for `sandcastle-agy` across all commands (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) with complete parity.
+
 Inside the `sandcastle-antigravity` root directory, link the binary to your global PATH:
 
 ```bash
@@ -66,9 +69,6 @@ sc-agy --help
 > ```bash
 > node C:\path\to\sandcastle-antigravity\main.mts <command>
 > ```
-
-> [!TIP]
-> **Official Shorthand Alias (`sc-agy`):** You can use `sc-agy` as an exact drop-in shorthand alias for `sandcastle-agy` across all commands (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) with complete parity.
 
 ---
 
@@ -233,6 +233,9 @@ docker images sandcastle-agent
 
 #### Passo 2.2: Disponibilizar o binário `sandcastle-agy` e o atalho `sc-agy` globalmente
 
+> [!TIP]
+> **Atalho Oficial (`sc-agy`):** Você pode utilizar o comando `sc-agy` em substituição direta a `sandcastle-agy` em todas as operações (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) com total paridade para agilizar testes e execuções repetidas.
+
 No diretório do `sandcastle-antigravity`, vincule o comando no sistema usando `npm link`:
 
 ```powershell
@@ -259,9 +262,6 @@ sc-agy --help
 > ```powershell
 > node C:\caminho\para\sandcastle-antigravity\main.mts <comando>
 > ```
-
-> [!TIP]
-> **Atalho Oficial (`sc-agy`):** Você pode utilizar o comando `sc-agy` em substituição direta a `sandcastle-agy` em todas as operações (`sc-agy doctor`, `sc-agy run`, `sc-agy rescue`, `sc-agy build-image`) com total paridade para agilizar testes e execuções repetidas.
 
 ---
 

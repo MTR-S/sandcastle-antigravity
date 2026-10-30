@@ -2,11 +2,31 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { formatCliHelp } from "./cli.ts";
 
 describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   const packageRoot = process.cwd();
   const pkgJsonPath = resolve(packageRoot, "package.json");
   const readmePath = resolve(packageRoot, "README.md");
+  const howToTestPath = resolve(packageRoot, "docs/HOW_TO_TEST.md");
+
+  let cachedReadme: string | null = null;
+  const getReadme = (): string => {
+    if (cachedReadme === null) {
+      assert.ok(existsSync(readmePath), "README.md must exist");
+      cachedReadme = readFileSync(readmePath, "utf-8");
+    }
+    return cachedReadme;
+  };
+
+  let cachedHowToTest: string | null = null;
+  const getHowToTest = (): string => {
+    if (cachedHowToTest === null) {
+      assert.ok(existsSync(howToTestPath), "docs/HOW_TO_TEST.md must exist");
+      cachedHowToTest = readFileSync(howToTestPath, "utf-8");
+    }
+    return cachedHowToTest;
+  };
 
   describe("package.json CLI Bin & Scripts Configuration", () => {
     test("exports standalone CLI binary sandcastle-agy pointing to executable entrypoint", () => {
@@ -64,20 +84,18 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   });
 
   describe("README.md Standalone Distribution & Usage Guide", () => {
-    let readme: string;
-
     test("reads README.md content", () => {
-      assert.ok(existsSync(readmePath), "README.md must exist");
-      readme = readFileSync(readmePath, "utf-8");
-      assert.ok(readme.length > 2000, "README.md should be comprehensive and non-trivial");
+      assert.ok(getReadme().length > 2000, "README.md should be comprehensive and non-trivial");
     });
 
     test("documents global installation via npm link and global install", () => {
+      const readme = getReadme();
       assert.match(readme, /npm\s+link/i, "Must document npm link installation");
       assert.match(readme, /sandcastle-agy/i, "Must cite sandcastle-agy binary name");
     });
 
     test("documents all four primary CLI subcommands", () => {
+      const readme = getReadme();
       // 1. run
       assert.match(readme, /sandcastle-agy\s+run/i, "Must document 'run' subcommand");
       assert.match(readme, /--repo|-r/i, "Must document --repo option");
@@ -94,6 +112,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
     });
 
     test("documents interactive Pre-Run Configuration Banner & Defaults Editor", () => {
+      const readme = getReadme();
       assert.match(
         readme,
         /Pre-Run\s+Configuration|Configuration\s+Banner/i,
@@ -104,12 +123,14 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
     });
 
     test("documents multi-account GitHub authentication workflow", () => {
+      const readme = getReadme();
       assert.match(readme, /gh\s+auth\s+switch/i, "Must document account switching via gh CLI");
       assert.match(readme, /MTR-S/i, "Must document personal account identity");
       assert.match(readme, /GH_TOKEN|GITHUB_TOKEN/i, "Must document token environment overrides");
     });
 
     test("documents zero-footprint target repository isolation guarantee", () => {
+      const readme = getReadme();
       assert.match(
         readme,
         /zero-footprint|target\s+repositor/i,
@@ -118,12 +139,14 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
     });
 
     test("preserves Matt Pocock and upstream @ai-hero/sandcastle attribution and copyright notices", () => {
+      const readme = getReadme();
       assert.match(readme, /Matt Pocock/i, "Must preserve Matt Pocock attribution");
       assert.match(readme, /@ai-hero\/sandcastle/i, "Must preserve @ai-hero/sandcastle attribution");
       assert.match(readme, /MIT/i, "Must cite MIT License");
     });
 
     test("documents sc-agy official shorthand alias with informative callout and usage syntax", () => {
+      const readme = getReadme();
       assert.match(readme, /sc-agy/i, "Must cite sc-agy binary alias");
       assert.match(
         readme,
@@ -139,16 +162,12 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   });
 
   describe("docs/HOW_TO_TEST.md Shorthand Alias & Manual Verification Guide (Issue #18)", () => {
-    const howToTestPath = resolve(packageRoot, "docs/HOW_TO_TEST.md");
-    let howToTest: string;
-
     test("reads docs/HOW_TO_TEST.md content", () => {
-      assert.ok(existsSync(howToTestPath), "docs/HOW_TO_TEST.md must exist");
-      howToTest = readFileSync(howToTestPath, "utf-8");
-      assert.ok(howToTest.length > 2000, "docs/HOW_TO_TEST.md must be comprehensive");
+      assert.ok(getHowToTest().length > 2000, "docs/HOW_TO_TEST.md must be comprehensive");
     });
 
     test("documents testing and manual verification using both sandcastle-agy and sc-agy", () => {
+      const howToTest = getHowToTest();
       assert.match(howToTest, /sandcastle-agy/i, "Must cite sandcastle-agy");
       assert.match(howToTest, /sc-agy/i, "Must cite sc-agy");
       assert.match(
@@ -160,8 +179,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   });
 
   describe("CLI Help Usage Syntax & Compliance (Issue #18)", () => {
-    test("formatCliHelp declares syntax 'Usage: sandcastle-agy | sc-agy <command> [options]'", async () => {
-      const { formatCliHelp } = await import("./cli.ts");
+    test("formatCliHelp declares syntax 'Usage: sandcastle-agy | sc-agy <command> [options]'", () => {
       const help = formatCliHelp();
       assert.match(
         help,
