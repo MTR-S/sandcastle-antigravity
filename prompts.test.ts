@@ -117,6 +117,36 @@ describe("Sandcastle Prompts & Template Configuration", () => {
       );
     });
 
+    test("injects activeConfig.githubAuth.token into GH_TOKEN and GITHUB_TOKEN, and account into GH_USER in getSandboxEnv() (Issue #24)", () => {
+      const content = readFileSync(mainMtsPath, "utf-8");
+
+      assert.match(
+        content,
+        /if\s*\(\s*activeConfig\.githubAuth(?:\.token)?\s*\)[\s\S]*?overrides\.GH_TOKEN\s*=\s*activeConfig\.githubAuth\.token/m,
+        "main.mts must inject activeConfig.githubAuth.token into overrides.GH_TOKEN",
+      );
+      assert.match(
+        content,
+        /overrides\.GITHUB_TOKEN\s*=\s*activeConfig\.githubAuth\.token/,
+        "main.mts must inject activeConfig.githubAuth.token into overrides.GITHUB_TOKEN",
+      );
+      assert.match(
+        content,
+        /if\s*\(\s*activeConfig\.githubAuth\.account\s*\)[\s\S]*?overrides\.GH_USER\s*=\s*activeConfig\.githubAuth\.account/m,
+        "main.mts must inject activeConfig.githubAuth.account into overrides.GH_USER when present",
+      );
+    });
+
+    test("validates activeConfig.githubAuth.token before entering orchestration loop (Issue #24)", () => {
+      const content = readFileSync(mainMtsPath, "utf-8");
+
+      assert.match(
+        content,
+        /if\s*\(\s*!activeConfig\.githubAuth(?:\.token)?\s*\)[\s\S]*?process\.exit\s*\(\s*1\s*\)/m,
+        "main.mts must validate activeConfig.githubAuth.token and exit with code 1 if missing",
+      );
+    });
+
     test("wires host authentication pre-flight check before creating sandboxes", () => {
       const content = readFileSync(mainMtsPath, "utf-8");
 
