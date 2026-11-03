@@ -142,8 +142,8 @@ describe("Sandcastle Prompts & Template Configuration", () => {
 
       assert.match(
         content,
-        /if\s*\(\s*!activeConfig\.githubAuth(?:\.token)?\s*\)[\s\S]*?process\.exit\s*\(\s*1\s*\)/m,
-        "main.mts must validate activeConfig.githubAuth.token and exit with code 1 if missing",
+        /if\s*\(\s*!activeConfig\.githubAuth(?:\.token)?\s*\)[\s\S]*?logAuthFailure\s*\(\s*DEFAULT_LOG_PATH[\s\S]*?process\.exit\s*\(\s*1\s*\)/m,
+        "main.mts must validate activeConfig.githubAuth.token, record structured auth failure log, and exit with code 1 if missing",
       );
     });
 

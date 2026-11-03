@@ -288,7 +288,7 @@ export function formatOAuthPayloadForContainer(
 /**
  * Appends a structured diagnostic entry to the auth failure log file.
  */
-function logAuthFailure(logPath: string, reason: string): void {
+export function logAuthFailure(logPath: string, reason: string): void {
   try {
     mkdirSync(dirname(logPath), { recursive: true });
     const timestamp = new Date().toISOString();

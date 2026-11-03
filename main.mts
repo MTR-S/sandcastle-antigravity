@@ -37,7 +37,7 @@ import { z } from "zod";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
-import { runAuthPreflight, formatOAuthPayloadForContainer } from "./auth-preflight.ts";
+import { runAuthPreflight, formatOAuthPayloadForContainer, logAuthFailure, DEFAULT_LOG_PATH } from "./auth-preflight.ts";
 import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
@@ -201,8 +201,10 @@ if (process.env.SANDCASTLE_DRY_RUN === "true" || process.env.SANDCASTLE_DRY_RUN 
 
 // Ensure GitHub authentication token is resolved before starting sandboxes or running loops (Issue #24)
 if (!activeConfig.githubAuth.token) {
+  const reason = "GitHub authentication token is required but was not found.";
+  logAuthFailure(DEFAULT_LOG_PATH, reason);
   console.error(
-    `[ERROR] GitHub authentication token is required but was not found. ` +
+    `[ERROR] ${reason} ` +
       `Please log in with 'gh auth login' or provide GH_TOKEN (or GITHUB_TOKEN) in your environment before running Sandcastle.`,
   );
   process.exit(1);
