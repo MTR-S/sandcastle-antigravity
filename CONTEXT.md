@@ -36,6 +36,10 @@ _Avoid_: API key forwarding, login interativo no container, token em arquivo
 Etapa interativa pré-execução que exibe na CLI todas as opções padrões autodetectadas (Target Repository, conta GitHub, identidade Git, Base Branch, Protected Branches, Verification Command e modelos de cada fase) permitindo confirmação imediata ou edição pontual pelo operador antes de criar worktrees ou containers.
 _Avoid_: execução às cegas, configuração oculta
 
+**GitHub Auth Token Forwarding**:
+Mecanismo de repasse do token GitHub (`GH_TOKEN`, `GITHUB_TOKEN`) e da conta associada (`GH_USER`) resolvidos no host (via ambiente ou `gh auth token` / `gh auth status`) para dentro do ambiente de sandbox Docker, garantindo que comandos da CLI `gh` executem sem exigir login interativo no container.
+_Avoid_: login manual no container, personal access token em código-fonte
+
 ### CLI Interface & Distribution
 
 **CLI Binary Alias**:

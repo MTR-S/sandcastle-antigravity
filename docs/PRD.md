@@ -70,3 +70,16 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Banners interativos, cabeçalhos operacionais e logs preservam a marca canônica Sandcastle Antigravity.
   - Testes em `cli.test.ts` e `distribution.test.ts` garantem conformidade com o contrato de empacotamento, sintaxe e paridade operacional com 100% dos testes passando.
 
+### Ticket #6: Encaminhamento de Credenciais GitHub e Validação Prévia no Container Sandbox (Issue #24)
+- **Escopo**:
+  - Injetar o token de autenticação resolvido do GitHub (`activeConfig.githubAuth.token`) em `overrides.GH_TOKEN` e `overrides.GITHUB_TOKEN` dentro de `getSandboxEnv()` em `main.mts`.
+  - Injetar a conta de usuário resolvida (`activeConfig.githubAuth.account`) em `overrides.GH_USER` quando presente, permitindo que a CLI `gh` dentro do container acerte a conta ativa sem exigir interação no host.
+  - Introduzir validação pré-voo rápida em `main.mts` para verificar a presença de `activeConfig.githubAuth.token` antes do início do loop de orquestração, abortando com mensagem explicativa e código de saída 1 caso credenciais do GitHub não estejam configuradas.
+  - Suportar `GH_USER` em `docker-config.ts` e validar o encaminhamento de variáveis em `prompts.test.ts`, `docker-config.test.ts` e `smoke.test.ts`.
+- **Critérios de Aceite**:
+  - Container Docker recebe `GH_TOKEN`, `GITHUB_TOKEN` e `GH_USER` correspondentes à autenticação do operador no host.
+  - Expressões shell que invocam `gh` (como na expansão de issues no `plan-prompt.md`) executam com sucesso dentro do container sem falha de autenticação.
+  - Falta de token do GitHub causa término imediato e fail-fast com código 1 antes de criar sandboxes.
+  - Suíte de testes unitários e de integração validam as variáveis de ambiente e o comportamento de validação com 100% de sucesso.
+
+
