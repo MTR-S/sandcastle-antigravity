@@ -35,6 +35,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
   const testEnv: Record<string, string> = {
     ...getSandboxEnv({
       GH_TOKEN: "smoke-gh-token-test",
+      GH_USER: "DynamicSandcastleAgent",
       GIT_USER_NAME: "Dynamic Sandcastle Agent",
       GIT_USER_EMAIL: "agent@sandcastle-dynamic.org",
     }),
@@ -85,12 +86,12 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
       }
 
       // 4. Confirm environment token and dynamic git identity forwarding
-      const envResult = await sandbox.exec('sh -c "echo GH=$GH_TOKEN"');
+      const envResult = await sandbox.exec('sh -c "echo GH=$GH_TOKEN GITHUB=$GITHUB_TOKEN GH_USER=$GH_USER"');
       assert.equal(envResult.exitCode, 0);
       assert.match(
         envResult.stdout,
-        /GH=smoke-gh-token-test/,
-        "Container should receive forwarded authentication tokens",
+        /GH=smoke-gh-token-test GITHUB=smoke-gh-token-test GH_USER=DynamicSandcastleAgent/,
+        "Container should receive forwarded authentication tokens and user",
       );
 
       const gitUserResult = await sandbox.exec("git config --global user.name");

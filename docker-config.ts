@@ -22,6 +22,9 @@ export function getSandboxEnv(
   if (sourceEnv.GITHUB_TOKEN) {
     env.GITHUB_TOKEN = sourceEnv.GITHUB_TOKEN;
   }
+  if (sourceEnv.GH_USER) {
+    env.GH_USER = sourceEnv.GH_USER;
+  }
   if (sourceEnv.SANDCASTLE_LABEL) {
     env.SANDCASTLE_LABEL = sourceEnv.SANDCASTLE_LABEL;
   }

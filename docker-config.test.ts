@@ -67,6 +67,19 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
       assert.ok(Object.isFrozen(env), "getSandboxEnv must return frozen/immutable object");
     });
 
+    test("getSandboxEnv forwards GH_USER when present and omits when undefined", () => {
+      const envWithUser = getSandboxEnv({
+        GH_USER: "MTR-S",
+        GH_TOKEN: "mock-gh-token",
+      });
+      assert.equal(envWithUser.GH_USER, "MTR-S");
+
+      const envWithoutUser = getSandboxEnv({
+        GH_TOKEN: "mock-gh-token",
+      });
+      assert.equal(envWithoutUser.GH_USER, undefined);
+    });
+
     test("getSandboxEnv omits GIT_USER_NAME and GIT_USER_EMAIL when not defined", () => {
       const env = getSandboxEnv({});
 

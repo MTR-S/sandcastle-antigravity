@@ -37,7 +37,7 @@ import { z } from "zod";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
-import { runAuthPreflight, formatOAuthPayloadForContainer } from "./auth-preflight.ts";
+import { runAuthPreflight, formatOAuthPayloadForContainer, logAuthFailure, DEFAULT_LOG_PATH } from "./auth-preflight.ts";
 import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
@@ -145,6 +145,13 @@ function getSandboxEnv(): Readonly<Record<string, string>> {
   // Reads tokens, labels (process.env.SANDCASTLE_LABEL), and git identity
   const env = resolveSandboxEnv(process.env);
   const overrides: Record<string, string> = {};
+  if (activeConfig.githubAuth.token) {
+    overrides.GH_TOKEN = activeConfig.githubAuth.token;
+    overrides.GITHUB_TOKEN = activeConfig.githubAuth.token;
+  }
+  if (activeConfig.githubAuth.account) {
+    overrides.GH_USER = activeConfig.githubAuth.account;
+  }
   if (activeConfig.gitIdentity.name) {
     overrides.GIT_USER_NAME = activeConfig.gitIdentity.name;
     overrides.GIT_AUTHOR_NAME = activeConfig.gitIdentity.name;
@@ -190,6 +197,17 @@ if (process.env.SANDCASTLE_DRY_RUN === "true" || process.env.SANDCASTLE_DRY_RUN 
   console.log(`[DRY-RUN] Execution completed cleanly.`);
   cleanupTargetRepository(repoRoot);
   process.exit(0);
+}
+
+// Ensure GitHub authentication token is resolved before starting sandboxes or running loops (Issue #24)
+if (!activeConfig.githubAuth.token) {
+  const reason = "GitHub authentication token is required but was not found.";
+  logAuthFailure(DEFAULT_LOG_PATH, reason);
+  console.error(
+    `[ERROR] ${reason} ` +
+      `Please log in with 'gh auth login' or provide GH_TOKEN (or GITHUB_TOKEN) in your environment before running Sandcastle.`,
+  );
+  process.exit(1);
 }
 
 /**
