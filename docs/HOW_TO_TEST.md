@@ -175,8 +175,8 @@ Before provisioning any containers or worktrees, an interactive banner displays 
 
 > [!NOTE]
 > **Live Iteration Commits Summaries**:
-> - At the end of Phase 2 (*Execute + Review*), completed branches display all chronological *Iteration Commits* (Implementer + Reviewer) with bullet markers (` • <shortSha> <subject>`).
-> - At the end of Phase 4 (*Merge*), the terminal displays integrated Base Branch commits under `Branches merged into <baseBranch>.` (or confirms when already up to date).
+> - At the end of Phase 2 (*Execute + Review* / covering Implementer & Reviewer roles), completed branches display all chronological *Iteration Commits* with bullet markers (` • <shortSha> <subject>`).
+> - At the end of Phase 4 (*Merge* / Phase 3 in orchestrator loop), the terminal displays integrated Base Branch commits under `Branches merged into <baseBranch>.` (or confirms when already up to date).
 
 **Zero-Footprint**: The target repository is never polluted with orchestrator files; execution logs are archived in `sandcastle-antigravity/.sandcastle/logs/`.
 
@@ -372,8 +372,8 @@ Antes de iniciar qualquer container ou criar branches, o terminal exibirá o res
 
 > [!NOTE]
 > **Sumários de Iteration Commits em Tempo Real**:
-> - Ao término da Fase 2 (*Execute + Review*), cada branch concluída exibe seus *Iteration Commits* em ordem cronológica (Implementer + Reviewer) com marcadores bullet (` • <shortSha> <subject>`).
-> - Ao término da Fase 4 (*Merge*), o terminal lista os commits integrados na Base Branch sob `Branches merged into <baseBranch>.` (ou confirma se a branch já estava atualizada).
+> - Ao término da Fase 2 (*Execute + Review* / cobrindo os papéis Implementer e Reviewer), cada branch concluída exibe seus *Iteration Commits* em ordem cronológica com marcadores bullet (` • <shortSha> <subject>`).
+> - Ao término da Fase 4 (*Merge* / Fase 3 no loop do orquestrador), o terminal lista os commits integrados na Base Branch sob `Branches merged into <baseBranch>.` (ou confirma se a branch já estava atualizada).
 
 **Garantia Zero-Footprint**: O repositório alvo nunca é poluído com arquivos do orquestrador; os logs são preservados em `sandcastle-antigravity/.sandcastle/logs/`.
 

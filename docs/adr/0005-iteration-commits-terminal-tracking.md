@@ -32,6 +32,7 @@ To audit agent output, operators were forced to pause the orchestrator or open a
    - Introduce formatter functions returning pre-indented arrays of terminal display lines using bullet markers (` • `) and short 7-character hashes:
      - `formatBranchCommitsSummary` / `formatPhase2ExecutionSummary` / `renderPhase2ExecutionSummary` for Phase 2 candidate branch summaries.
      - `formatIntegratedCommitsSummary` / `formatPhase3MergeSummary` / `renderPhase3MergeSummary` for Phase 3 Base Branch merge summaries.
+   - Expose default fallback constants `DEFAULT_COMMIT_FALLBACK_MESSAGE` (`"(commit message unavailable)"`) and `DEFAULT_INTEGRATED_EMPTY_MESSAGE` (`"(no new commits integrated; base branch already up to date)"`).
    - Provide zero-throw fault tolerance with graceful fallback to short SHAs with unavailable placeholder when git log queries fail or encounter unexpected errors, ensuring orchestrator execution is never aborted.
    - Injectable `gitRunner` option allowing deterministic unit testing with zero Git dirtying.
 

@@ -7,77 +7,32 @@ import { formatCliHelp } from "./cli.ts";
 describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   const packageRoot = process.cwd();
   const pkgJsonPath = resolve(packageRoot, "package.json");
+  const createCachedFileReader = (filePath: string, label: string): (() => string) => {
+    let cachedContent: string | null = null;
+    return (): string => {
+      if (cachedContent === null) {
+        assert.ok(existsSync(filePath), `${label} must exist`);
+        cachedContent = readFileSync(filePath, "utf-8");
+      }
+      return cachedContent;
+    };
+  };
+
   const readmePath = resolve(packageRoot, "README.md");
   const howToTestPath = resolve(packageRoot, "docs/HOW_TO_TEST.md");
-
-  let cachedReadme: string | null = null;
-  const getReadme = (): string => {
-    if (cachedReadme === null) {
-      assert.ok(existsSync(readmePath), "README.md must exist");
-      cachedReadme = readFileSync(readmePath, "utf-8");
-    }
-    return cachedReadme;
-  };
-
-  let cachedHowToTest: string | null = null;
-  const getHowToTest = (): string => {
-    if (cachedHowToTest === null) {
-      assert.ok(existsSync(howToTestPath), "docs/HOW_TO_TEST.md must exist");
-      cachedHowToTest = readFileSync(howToTestPath, "utf-8");
-    }
-    return cachedHowToTest;
-  };
-
   const prdPath = resolve(packageRoot, "docs/PRD.md");
   const adr0003Path = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
   const adr0004Path = resolve(packageRoot, "docs/adr/0004-sequential-sandbox-git-identity.md");
   const adr0005Path = resolve(packageRoot, "docs/adr/0005-iteration-commits-terminal-tracking.md");
   const contextPath = resolve(packageRoot, "CONTEXT.md");
 
-  let cachedPrd: string | null = null;
-  const getPrd = (): string => {
-    if (cachedPrd === null) {
-      assert.ok(existsSync(prdPath), "docs/PRD.md must exist");
-      cachedPrd = readFileSync(prdPath, "utf-8");
-    }
-    return cachedPrd;
-  };
-
-  let cachedAdr0003: string | null = null;
-  const getAdr0003 = (): string => {
-    if (cachedAdr0003 === null) {
-      assert.ok(existsSync(adr0003Path), "docs/adr/0003-cli-binary-alias.md must exist");
-      cachedAdr0003 = readFileSync(adr0003Path, "utf-8");
-    }
-    return cachedAdr0003;
-  };
-
-  let cachedAdr0004: string | null = null;
-  const getAdr0004 = (): string => {
-    if (cachedAdr0004 === null) {
-      assert.ok(existsSync(adr0004Path), "docs/adr/0004-sequential-sandbox-git-identity.md must exist");
-      cachedAdr0004 = readFileSync(adr0004Path, "utf-8");
-    }
-    return cachedAdr0004;
-  };
-
-  let cachedAdr0005: string | null = null;
-  const getAdr0005 = (): string => {
-    if (cachedAdr0005 === null) {
-      assert.ok(existsSync(adr0005Path), "docs/adr/0005-iteration-commits-terminal-tracking.md must exist");
-      cachedAdr0005 = readFileSync(adr0005Path, "utf-8");
-    }
-    return cachedAdr0005;
-  };
-
-  let cachedContext: string | null = null;
-  const getContext = (): string => {
-    if (cachedContext === null) {
-      assert.ok(existsSync(contextPath), "CONTEXT.md must exist");
-      cachedContext = readFileSync(contextPath, "utf-8");
-    }
-    return cachedContext;
-  };
+  const getReadme = createCachedFileReader(readmePath, "README.md");
+  const getHowToTest = createCachedFileReader(howToTestPath, "docs/HOW_TO_TEST.md");
+  const getPrd = createCachedFileReader(prdPath, "docs/PRD.md");
+  const getAdr0003 = createCachedFileReader(adr0003Path, "docs/adr/0003-cli-binary-alias.md");
+  const getAdr0004 = createCachedFileReader(adr0004Path, "docs/adr/0004-sequential-sandbox-git-identity.md");
+  const getAdr0005 = createCachedFileReader(adr0005Path, "docs/adr/0005-iteration-commits-terminal-tracking.md");
+  const getContext = createCachedFileReader(contextPath, "CONTEXT.md");
 
   describe("package.json CLI Bin & Scripts Configuration", () => {
     test("exports standalone CLI binary sandcastle-agy pointing to executable entrypoint", () => {
@@ -230,7 +185,16 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
 
     test("documents live Iteration Commits progress summaries in both English and Portuguese walkthroughs (Spec #19)", () => {
       const howToTest = getHowToTest();
-      assert.match(howToTest, /Iteration Commits/i, "Must cite Iteration Commits in testing walkthrough");
+      assert.match(
+        howToTest,
+        /Live Iteration Commits Summaries/i,
+        "Must cite Iteration Commits in English walkthrough",
+      );
+      assert.match(
+        howToTest,
+        /Sumários de Iteration Commits em Tempo Real/i,
+        "Must cite Iteration Commits in Portuguese walkthrough",
+      );
       assert.match(howToTest, /Branches merged into/i, "Must cite Phase 4 merge summary");
     });
   });
@@ -246,139 +210,145 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
     });
   });
 
-  describe("Domain & Architecture Documentation Alignment (Spec #16)", () => {
-    test("docs/PRD.md documents Ticket #5 for sc-agy shorthand CLI binary alias specification", () => {
-      const prd = getPrd();
-      assert.match(prd, /Ticket #5/i, "docs/PRD.md must document Ticket #5");
-      assert.match(prd, /sc-agy/i, "docs/PRD.md must reference sc-agy alias");
+  describe("Domain & Architecture Documentation Alignment", () => {
+    describe("Spec #16: CLI Binary Alias (Ticket #5)", () => {
+      test("docs/PRD.md documents Ticket #5 for sc-agy shorthand CLI binary alias specification", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #5/i, "docs/PRD.md must document Ticket #5");
+        assert.match(prd, /sc-agy/i, "docs/PRD.md must reference sc-agy alias");
+      });
+
+      test("docs/adr/0003-cli-binary-alias.md documents CLI Binary Alias architecture, considered options, and consequences", () => {
+        const adr = getAdr0003();
+        assert.match(adr, /CLI Binary Alias/i, "ADR must define CLI Binary Alias");
+        assert.match(adr, /sc-agy/i, "ADR must reference sc-agy");
+        assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+        assert.match(adr, /Consequences/i, "ADR must outline consequences");
+        assert.match(getReadme(), /0003-cli-binary-alias\.md/, "README.md must link to ADR 0003");
+      });
+
+      test("CONTEXT.md defines CLI Binary Alias in domain glossary under CLI Interface & Distribution", () => {
+        const context = getContext();
+        assert.match(context, /CLI Binary Alias/i, "CONTEXT.md must define CLI Binary Alias");
+        assert.match(context, /sc-agy/i, "CONTEXT.md must cite sc-agy");
+      });
     });
 
-    test("docs/adr/0003-cli-binary-alias.md documents CLI Binary Alias architecture, considered options, and consequences", () => {
-      const adr = getAdr0003();
-      assert.match(adr, /CLI Binary Alias/i, "ADR must define CLI Binary Alias");
-      assert.match(adr, /sc-agy/i, "ADR must reference sc-agy");
-      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
-      assert.match(adr, /Consequences/i, "ADR must outline consequences");
-      assert.match(getReadme(), /0003-cli-binary-alias\.md/, "README.md must link to ADR 0003");
+    describe("Ticket #7: Sequential Sandbox Git Identity (.gitconfig.lock / Issue #26)", () => {
+      test("docs/PRD.md documents Ticket #7 for Issue #26 .gitconfig.lock race condition resolution", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #7/i, "docs/PRD.md must document Ticket #7");
+        assert.match(prd, /gitconfig\.lock/i, "docs/PRD.md must cite .gitconfig.lock");
+        assert.match(prd, /Issue #26/i, "docs/PRD.md must reference Issue #26");
+      });
+
+      test("docs/adr/0004-sequential-sandbox-git-identity.md documents sequential Git identity architecture, options, and consequences", () => {
+        const adr = getAdr0004();
+        assert.match(adr, /Sequential Sandbox Git Identity/i, "ADR must define Sequential Sandbox Git Identity");
+        assert.match(adr, /gitconfig\.lock/i, "ADR must reference .gitconfig.lock");
+        assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+        assert.match(adr, /Consequences/i, "ADR must outline consequences");
+        assert.match(getReadme(), /0004-sequential-sandbox-git-identity\.md/, "README.md must link to ADR 0004");
+      });
+
+      test("CONTEXT.md defines Sequential Sandbox Git Identity Configuration in domain glossary", () => {
+        const context = getContext();
+        assert.match(
+          context,
+          /Sequential Sandbox Git Identity Configuration/i,
+          "CONTEXT.md must define Sequential Sandbox Git Identity Configuration",
+        );
+        assert.match(context, /onSandboxReady/i, "CONTEXT.md must cite onSandboxReady hook");
+      });
     });
 
-    test("CONTEXT.md defines CLI Binary Alias in domain glossary under CLI Interface & Distribution", () => {
-      const context = getContext();
-      assert.match(context, /CLI Binary Alias/i, "CONTEXT.md must define CLI Binary Alias");
-      assert.match(context, /sc-agy/i, "CONTEXT.md must cite sc-agy");
-    });
+    describe("Spec #19: Live Iteration Commits Terminal Tracking (Ticket #8)", () => {
+      test("CONTEXT.md defines Iteration Commits in domain glossary under Orquestração e Isolamento (Issue #20)", () => {
+        const context = getContext();
+        assert.match(
+          context,
+          /Iteration Commits/i,
+          "CONTEXT.md must define Iteration Commits in domain glossary",
+        );
+        assert.match(
+          context,
+          /Implementer/i,
+          "CONTEXT.md Iteration Commits definition must reference Implementer role",
+        );
+        assert.match(
+          context,
+          /Reviewer/i,
+          "CONTEXT.md Iteration Commits definition must reference Reviewer role",
+        );
+        assert.match(
+          context,
+          /Merger/i,
+          "CONTEXT.md Iteration Commits definition must reference Merger role",
+        );
+      });
 
-    test("docs/PRD.md documents Ticket #7 for Issue #26 .gitconfig.lock race condition resolution", () => {
-      const prd = getPrd();
-      assert.match(prd, /Ticket #7/i, "docs/PRD.md must document Ticket #7");
-      assert.match(prd, /gitconfig\.lock/i, "docs/PRD.md must cite .gitconfig.lock");
-      assert.match(prd, /Issue #26/i, "docs/PRD.md must reference Issue #26");
-    });
+      test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #20 & #22 Iteration Commits", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
+        assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
+        assert.match(prd, /Spec #19/i, "docs/PRD.md must reference Spec #19");
+        assert.match(prd, /Issues? #20/i, "docs/PRD.md must reference Issue #20");
+        assert.match(prd, /#22/i, "docs/PRD.md must reference Issue #22");
+        assert.match(prd, /getIntegratedCommits/i, "docs/PRD.md must cite getIntegratedCommits");
+        assert.match(prd, /formatIntegratedCommitsSummary/i, "docs/PRD.md must cite formatIntegratedCommitsSummary");
+      });
 
-    test("docs/adr/0004-sequential-sandbox-git-identity.md documents sequential Git identity architecture, options, and consequences", () => {
-      const adr = getAdr0004();
-      assert.match(adr, /Sequential Sandbox Git Identity/i, "ADR must define Sequential Sandbox Git Identity");
-      assert.match(adr, /gitconfig\.lock/i, "ADR must reference .gitconfig.lock");
-      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
-      assert.match(adr, /Consequences/i, "ADR must outline consequences");
-      assert.match(getReadme(), /0004-sequential-sandbox-git-identity\.md/, "README.md must link to ADR 0004");
-    });
+      test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #21 Phase 2 Iteration Commits execution summary", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
+        assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
+        assert.match(prd, /Issue #21/i, "docs/PRD.md must reference Issue #21");
+        assert.match(
+          prd,
+          /Phase 2|Fase 2/i,
+          "docs/PRD.md Ticket #8 must reference Phase 2 execution summary",
+        );
+      });
 
-    test("CONTEXT.md defines Sequential Sandbox Git Identity Configuration in domain glossary", () => {
-      const context = getContext();
-      assert.match(
-        context,
-        /Sequential Sandbox Git Identity Configuration/i,
-        "CONTEXT.md must define Sequential Sandbox Git Identity Configuration",
-      );
-      assert.match(context, /onSandboxReady/i, "CONTEXT.md must cite onSandboxReady hook");
-    });
+      test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #23 Phase 3 Base Branch merge summary", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
+        assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
+        assert.match(prd, /Issue #23/i, "docs/PRD.md must reference Issue #23");
+        assert.match(
+          prd,
+          /Phase 3|Fase 3/i,
+          "docs/PRD.md Ticket #8 must reference Phase 3 merge summary",
+        );
+        assert.match(prd, /getBranchHeadRevision/i, "docs/PRD.md must cite getBranchHeadRevision");
+        assert.match(prd, /formatPhase3MergeSummary/i, "docs/PRD.md must cite formatPhase3MergeSummary");
+      });
 
-    test("CONTEXT.md defines Iteration Commits in domain glossary under Orquestração e Isolamento (Issue #20)", () => {
-      const context = getContext();
-      assert.match(
-        context,
-        /Iteration Commits/i,
-        "CONTEXT.md must define Iteration Commits in domain glossary",
-      );
-      assert.match(
-        context,
-        /Implementer/i,
-        "CONTEXT.md Iteration Commits definition must reference Implementer role",
-      );
-      assert.match(
-        context,
-        /Reviewer/i,
-        "CONTEXT.md Iteration Commits definition must reference Reviewer role",
-      );
-      assert.match(
-        context,
-        /Merger/i,
-        "CONTEXT.md Iteration Commits definition must reference Merger role",
-      );
-    });
+      test("docs/adr/0005-iteration-commits-terminal-tracking.md documents Iteration Commits architecture, options, and consequences (Spec #19)", () => {
+        const adr = getAdr0005();
+        assert.match(adr, /Iteration Commits/i, "ADR must define Iteration Commits");
+        assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+        assert.match(adr, /Consequences/i, "ADR must outline consequences");
+        assert.match(adr, /Phase 2/i, "ADR must cover Phase 2 candidate branch inspection");
+        assert.match(adr, /Phase 3/i, "ADR must cover Phase 3 integrated Base Branch inspection");
+        assert.match(getReadme(), /0005-iteration-commits-terminal-tracking\.md/, "README.md must link to ADR 0005");
+      });
 
-    test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #20 & #22 Iteration Commits", () => {
-      const prd = getPrd();
-      assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
-      assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
-      assert.match(prd, /Spec #19/i, "docs/PRD.md must reference Spec #19");
-      assert.match(prd, /Issues? #20/i, "docs/PRD.md must reference Issue #20");
-      assert.match(prd, /#22/i, "docs/PRD.md must reference Issue #22");
-      assert.match(prd, /getIntegratedCommits/i, "docs/PRD.md must cite getIntegratedCommits");
-      assert.match(prd, /formatIntegratedCommitsSummary/i, "docs/PRD.md must cite formatIntegratedCommitsSummary");
-    });
+      test("README.md documents Iteration Commits terminal progress tracking and phase summaries (Spec #19)", () => {
+        const readme = getReadme();
+        assert.match(readme, /Iteration Commits/i, "README.md must cite Iteration Commits");
+        assert.match(readme, /Execution complete/i, "README.md must document Phase 2 execution summary");
+        assert.match(readme, /Branches merged into/i, "README.md must document Phase 3 integrated merge summary");
+      });
 
-    test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #21 Phase 2 Iteration Commits execution summary", () => {
-      const prd = getPrd();
-      assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
-      assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
-      assert.match(prd, /Issue #21/i, "docs/PRD.md must reference Issue #21");
-      assert.match(
-        prd,
-        /Phase 2|Fase 2/i,
-        "docs/PRD.md Ticket #8 must reference Phase 2 execution summary",
-      );
-    });
-
-    test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #23 Phase 3 Base Branch merge summary", () => {
-      const prd = getPrd();
-      assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
-      assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
-      assert.match(prd, /Issue #23/i, "docs/PRD.md must reference Issue #23");
-      assert.match(
-        prd,
-        /Phase 3|Fase 3/i,
-        "docs/PRD.md Ticket #8 must reference Phase 3 merge summary",
-      );
-      assert.match(prd, /getBranchHeadRevision/i, "docs/PRD.md must cite getBranchHeadRevision");
-      assert.match(prd, /formatPhase3MergeSummary/i, "docs/PRD.md must cite formatPhase3MergeSummary");
-    });
-
-    test("docs/adr/0005-iteration-commits-terminal-tracking.md documents Iteration Commits architecture, options, and consequences (Spec #19)", () => {
-      const adr = getAdr0005();
-      assert.match(adr, /Iteration Commits/i, "ADR must define Iteration Commits");
-      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
-      assert.match(adr, /Consequences/i, "ADR must outline consequences");
-      assert.match(adr, /Phase 2/i, "ADR must cover Phase 2 candidate branch inspection");
-      assert.match(adr, /Phase 3/i, "ADR must cover Phase 3 integrated Base Branch inspection");
-      assert.match(getReadme(), /0005-iteration-commits-terminal-tracking\.md/, "README.md must link to ADR 0005");
-    });
-
-    test("README.md documents Iteration Commits terminal progress tracking and phase summaries (Spec #19)", () => {
-      const readme = getReadme();
-      assert.match(readme, /Iteration Commits/i, "README.md must cite Iteration Commits");
-      assert.match(readme, /Execution complete/i, "README.md must document Phase 2 execution summary");
-      assert.match(readme, /Branches merged into/i, "README.md must document Phase 3 integrated merge summary");
-    });
-
-    test("docs/PRD.md documents Ticket #8 for Spec #19 with reference to ADR 0005", () => {
-      const prd = getPrd();
-      assert.match(
-        prd,
-        /0005-iteration-commits-terminal-tracking\.md/i,
-        "docs/PRD.md Ticket #8 must reference ADR 0005",
-      );
+      test("docs/PRD.md documents Ticket #8 for Spec #19 with reference to ADR 0005", () => {
+        const prd = getPrd();
+        assert.match(
+          prd,
+          /0005-iteration-commits-terminal-tracking\.md/i,
+          "docs/PRD.md Ticket #8 must reference ADR 0005",
+        );
+      });
     });
   });
 });
