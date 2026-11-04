@@ -626,17 +626,27 @@ export type OperationsGitRunner = (
   cwd: string,
 ) => { status: number | null; stdout: string; stderr: string };
 
-export interface GetBranchCommitsOptions {
+export interface GitCommitQueryOptions {
   readonly gitRunner?: OperationsGitRunner;
   readonly fallbackMessage?: string;
   readonly logger?: (msg: string) => void;
   readonly errorLogger?: (msg: string) => void;
 }
 
+export interface GetBranchCommitsOptions extends GitCommitQueryOptions {}
+export interface GetIntegratedCommitsOptions extends GitCommitQueryOptions {}
+
 export interface FormatBranchCommitsOptions {
   readonly branchIndent?: string;
   readonly commitIndent?: string;
   readonly emptyPlaceholder?: string;
+}
+
+export interface FormatIntegratedCommitsOptions {
+  readonly headerIndent?: string;
+  readonly commitIndent?: string;
+  readonly emptyPlaceholder?: string;
+  readonly upToDateMessage?: string;
 }
 
 /**
@@ -655,6 +665,8 @@ export interface RenderPhase2ExecutionSummaryOptions
 }
 
 export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
+export const DEFAULT_INTEGRATED_EMPTY_MESSAGE =
+  "(no new commits integrated; base branch already up to date)";
 
 function createCommit(
   rawSha: string,
@@ -667,7 +679,7 @@ function createCommit(
   const trimmedMessage = rawMessage.trim();
   return {
     sha,
-    shortSha: shortSha || sha.slice(0, 7),
+    shortSha,
     message: trimmedMessage.length > 0 ? trimmedMessage : fallbackMessage,
   };
 }
@@ -680,6 +692,88 @@ function fallbackCommitForTargetBranch(
     return Object.freeze([createCommit(targetBranch, "", "", fallbackMessage)]);
   }
   return Object.freeze([]);
+}
+
+interface QueryCommitsInRangeOptions extends GitCommitQueryOptions {
+  readonly logContext?: string;
+}
+
+function queryCommitsInRange(
+  repoRoot: string,
+  fromRev: string,
+  toRev: string,
+  options: QueryCommitsInRangeOptions = {},
+): readonly GitCommitInfo[] {
+  const runner = options.gitRunner ?? runExecCommand;
+  const fallbackMessage = options.fallbackMessage ?? DEFAULT_COMMIT_FALLBACK_MESSAGE;
+  const targetRepo = resolve(repoRoot);
+  const range = `${fromRev}..${toRev}`;
+  const gitLogCmd = `git log --reverse --format="%H%x1f%h%x1f%s" ${range}`;
+  const contextPrefix = options.logContext ? `${options.logContext} ` : "";
+
+  try {
+    const outcome = runner(gitLogCmd, targetRepo);
+    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
+      const commits = outcome.stdout
+        .split(/\r?\n/)
+        .map((line) => parseCommitLine(line, fallbackMessage))
+        .filter((commit): commit is GitCommitInfo => commit !== null);
+      return Object.freeze(commits);
+    }
+
+    if (outcome.status !== 0) {
+      try {
+        const revListRes = runner(`git rev-list --reverse ${range}`, targetRepo);
+        if (revListRes.status === 0 && revListRes.stdout.trim().length > 0) {
+          const fallbackCommits = revListRes.stdout
+            .split(/\r?\n/)
+            .map((h) => h.trim())
+            .filter((h) => h.length > 0)
+            .map((hash) => createCommit(hash, "", "", fallbackMessage));
+          return Object.freeze(fallbackCommits);
+        }
+      } catch {
+        // Ignore rev-list failure and continue to target revision fallback
+      }
+
+      options.errorLogger?.(
+        `[COMMIT-INSPECTION] Git query failed for ${contextPrefix}${range}: ${outcome.stderr}`,
+      );
+      return fallbackCommitForTargetBranch(toRev, fallbackMessage);
+    }
+
+    return Object.freeze([]);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Git query failed for ${contextPrefix}${range}: ${msg}`,
+    );
+    return fallbackCommitForTargetBranch(toRev, fallbackMessage);
+  }
+}
+
+function resolveSummaryArgs<TOptions>(
+  firstArg: string | readonly GitCommitInfo[],
+  secondArg?: readonly GitCommitInfo[] | TOptions,
+  thirdArg?: TOptions,
+): { headerTarget?: string; commits: readonly GitCommitInfo[]; options?: TOptions } {
+  if (typeof firstArg === "string") {
+    return {
+      headerTarget: firstArg.trim(),
+      commits: (secondArg as readonly GitCommitInfo[]) ?? [],
+      options: thirdArg,
+    };
+  }
+  return {
+    commits: firstArg,
+    options: secondArg as TOptions | undefined,
+  };
+}
+
+function formatCommitBullet(commit: GitCommitInfo, indent: string): string {
+  const shortSha = commit.shortSha || commit.sha.slice(0, 7);
+  const message = commit.message || DEFAULT_COMMIT_FALLBACK_MESSAGE;
+  return `${indent}• ${shortSha} ${message}`;
 }
 
 /**
@@ -738,47 +832,7 @@ export function getBranchCommits(
   targetBranch: string,
   options: GetBranchCommitsOptions = {},
 ): readonly GitCommitInfo[] {
-  const runner = options.gitRunner ?? runExecCommand;
-  const fallbackMessage = options.fallbackMessage ?? DEFAULT_COMMIT_FALLBACK_MESSAGE;
-
-  const targetRepo = resolve(repoRoot);
-  const range = `${baseBranch}..${targetBranch}`;
-  const gitLogCmd = `git log --reverse --format="%H%x1f%h%x1f%s" ${range}`;
-
-  try {
-    const outcome = runner(gitLogCmd, targetRepo);
-    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
-      const commits = outcome.stdout
-        .split(/\r?\n/)
-        .map((line) => parseCommitLine(line, fallbackMessage))
-        .filter((commit): commit is GitCommitInfo => commit !== null);
-      return Object.freeze(commits);
-    }
-
-    if (outcome.status !== 0) {
-      try {
-        const revListRes = runner(`git rev-list --reverse ${range}`, targetRepo);
-        if (revListRes.status === 0 && revListRes.stdout.trim().length > 0) {
-          const fallbackCommits = revListRes.stdout
-            .split(/\r?\n/)
-            .map((h) => h.trim())
-            .filter((h) => h.length > 0)
-            .map((hash) => createCommit(hash, "", "", fallbackMessage));
-          return Object.freeze(fallbackCommits);
-        }
-      } catch {
-        // Ignore rev-list failure and continue to branch hash fallback
-      }
-
-      return fallbackCommitForTargetBranch(targetBranch, fallbackMessage);
-    }
-
-    return Object.freeze([]);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    options.errorLogger?.(`[COMMIT-INSPECTION] Git query failed for ${range}: ${msg}`);
-    return fallbackCommitForTargetBranch(targetBranch, fallbackMessage);
-  }
+  return queryCommitsInRange(repoRoot, baseBranch, targetBranch, options);
 }
 
 /**
@@ -800,25 +854,13 @@ export function formatBranchCommitsSummary(
   secondArg?: readonly GitCommitInfo[] | FormatBranchCommitsOptions,
   thirdArg?: FormatBranchCommitsOptions,
 ): readonly string[] {
-  let branchName: string | undefined;
-  let commits: readonly GitCommitInfo[] = [];
-  let options: FormatBranchCommitsOptions | undefined;
-
-  if (typeof firstArg === "string") {
-    branchName = firstArg.trim();
-    commits = (secondArg as readonly GitCommitInfo[]) ?? [];
-    options = thirdArg;
-  } else {
-    commits = firstArg;
-    options = secondArg as FormatBranchCommitsOptions | undefined;
-  }
-
+  const { headerTarget, commits, options } = resolveSummaryArgs(firstArg, secondArg, thirdArg);
   const branchIndent = options?.branchIndent ?? "  ";
   const commitIndent = options?.commitIndent ?? "      ";
   const lines: string[] = [];
 
-  if (branchName !== undefined) {
-    lines.push(`${branchIndent}${branchName}`);
+  if (headerTarget !== undefined) {
+    lines.push(`${branchIndent}${headerTarget}`);
   }
 
   if (commits.length === 0) {
@@ -829,8 +871,85 @@ export function formatBranchCommitsSummary(
   }
 
   for (const commit of commits) {
-    const shortSha = commit.shortSha || commit.sha.slice(0, 7);
-    lines.push(`${commitIndent}• ${shortSha} ${commit.message}`);
+    lines.push(formatCommitBullet(commit, commitIndent));
+  }
+
+  return Object.freeze(lines);
+}
+
+/**
+ * Queries commits integrated into Base Branch between pre-merge and post-merge HEAD revisions.
+ * Handles single commits, multi-commit ranges, merge commits, and up-to-date branch conditions in chronological order.
+ * Tolerant to Git query errors and falls back gracefully to short SHAs with unavailable placeholder without throwing.
+ */
+export function getIntegratedCommits(
+  repoRoot: string,
+  preMergeHead: string,
+  postMergeHead: string,
+  options: GetIntegratedCommitsOptions = {},
+): readonly GitCommitInfo[] {
+  const pre = preMergeHead?.trim() ?? "";
+  const post = postMergeHead?.trim() ?? "";
+
+  if (!pre || !post) {
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Invalid pre-merge or post-merge revisions: pre='${pre}', post='${post}'`,
+    );
+    return Object.freeze([]);
+  }
+
+  if (pre === post) {
+    return Object.freeze([]);
+  }
+
+  return queryCommitsInRange(repoRoot, pre, post, {
+    ...options,
+    logContext: "integrated commits",
+  });
+}
+
+/**
+ * Formats integrated Base Branch commits under "Branches merged into <baseBranch>." with bullet markers ( • ).
+ * When no new commits were integrated, prints a clear confirmation that Base Branch is already up to date.
+ * Overload 1: formatIntegratedCommitsSummary(baseBranch, commits, options?)
+ * Overload 2: formatIntegratedCommitsSummary(commits, options?)
+ */
+export function formatIntegratedCommitsSummary(
+  baseBranch: string,
+  commits: readonly GitCommitInfo[],
+  options?: FormatIntegratedCommitsOptions,
+): readonly string[];
+export function formatIntegratedCommitsSummary(
+  commits: readonly GitCommitInfo[],
+  options?: FormatIntegratedCommitsOptions,
+): readonly string[];
+export function formatIntegratedCommitsSummary(
+  firstArg: string | readonly GitCommitInfo[],
+  secondArg?: readonly GitCommitInfo[] | FormatIntegratedCommitsOptions,
+  thirdArg?: FormatIntegratedCommitsOptions,
+): readonly string[] {
+  const { headerTarget, commits, options } = resolveSummaryArgs(firstArg, secondArg, thirdArg);
+  const headerIndent = options?.headerIndent ?? "";
+  const commitIndent = options?.commitIndent ?? "  ";
+  const emptyPlaceholder =
+    options?.emptyPlaceholder ??
+    options?.upToDateMessage ??
+    DEFAULT_INTEGRATED_EMPTY_MESSAGE;
+
+  const lines: string[] = [];
+
+  if (headerTarget !== undefined && headerTarget.length > 0) {
+    const branchSuffix = headerTarget.endsWith(".") ? headerTarget : `${headerTarget}.`;
+    lines.push(`${headerIndent}Branches merged into ${branchSuffix}`);
+  }
+
+  if (commits.length === 0) {
+    lines.push(`${commitIndent}${emptyPlaceholder}`);
+    return Object.freeze(lines);
+  }
+
+  for (const commit of commits) {
+    lines.push(formatCommitBullet(commit, commitIndent));
   }
 
   return Object.freeze(lines);
