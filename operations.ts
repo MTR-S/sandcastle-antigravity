@@ -614,3 +614,253 @@ export function cleanupTargetRepository(
     return { cleanedSandcastleDir: false, logsPreserved };
   }
 }
+
+export interface GitCommitInfo {
+  readonly sha: string;
+  readonly shortSha: string;
+  readonly message: string;
+}
+
+export type OperationsGitRunner = (
+  cmd: string,
+  cwd: string,
+) => { status: number | null; stdout: string; stderr: string };
+
+export interface GetBranchCommitsOptions {
+  readonly gitRunner?: OperationsGitRunner;
+  readonly fallbackMessage?: string;
+  readonly logger?: (msg: string) => void;
+  readonly errorLogger?: (msg: string) => void;
+}
+
+export interface FormatBranchCommitsOptions {
+  readonly branchIndent?: string;
+  readonly commitIndent?: string;
+  readonly emptyPlaceholder?: string;
+}
+
+export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
+
+/**
+ * Parses a single line from git log output into a GitCommitInfo structure.
+ * Supports unit-separator delimited output, tab-delimited output, and space-separated lines.
+ */
+export function parseCommitLine(line: string, fallbackMessage: string = DEFAULT_COMMIT_FALLBACK_MESSAGE): GitCommitInfo | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // 1. Check unit-separator delimiter (\x1f)
+  if (trimmed.includes("\x1f")) {
+    const parts = trimmed.split("\x1f");
+    const sha = parts[0]?.trim() || "";
+    const shortSha = parts[1]?.trim() || sha.slice(0, 7);
+    const rawMessage = parts.slice(2).join("\x1f").trim();
+    const message = rawMessage.length > 0 ? rawMessage : fallbackMessage;
+    return {
+      sha,
+      shortSha: shortSha || sha.slice(0, 7),
+      message,
+    };
+  }
+
+  // 2. Check tab delimiter
+  if (trimmed.includes("\t")) {
+    const parts = trimmed.split("\t");
+    const sha = parts[0]?.trim() || "";
+    const shortSha = (parts.length > 2 ? parts[1]?.trim() : "") || sha.slice(0, 7);
+    const rawMessage = (parts.length > 2 ? parts.slice(2).join("\t") : parts[1] || "").trim();
+    const message = rawMessage.length > 0 ? rawMessage : fallbackMessage;
+    return {
+      sha,
+      shortSha: shortSha || sha.slice(0, 7),
+      message,
+    };
+  }
+
+  // 3. Regex matching standard git log lines:
+  // e.g. "40-hex 7-hex Subject message"
+  const fullAndShortMatch = trimmed.match(/^([0-9a-fA-F]{40})\s+([0-9a-fA-F]{7,12})\s*(.*)$/);
+  if (fullAndShortMatch) {
+    const sha = fullAndShortMatch[1];
+    const shortSha = fullAndShortMatch[2];
+    const rawMsg = fullAndShortMatch[3].trim();
+    return {
+      sha,
+      shortSha,
+      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
+    };
+  }
+
+  // e.g. "40-hex Subject message"
+  const fullMatch = trimmed.match(/^([0-9a-fA-F]{40})\s*(.*)$/);
+  if (fullMatch) {
+    const sha = fullMatch[1];
+    const shortSha = sha.slice(0, 7);
+    const rawMsg = fullMatch[2].trim();
+    return {
+      sha,
+      shortSha,
+      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
+    };
+  }
+
+  // e.g. "7-12 hex Subject message"
+  const shortMatch = trimmed.match(/^([0-9a-fA-F]{7,12})\s*(.*)$/);
+  if (shortMatch) {
+    const shortSha = shortMatch[1].slice(0, 7);
+    const rawMsg = shortMatch[2].trim();
+    return {
+      sha: shortMatch[1],
+      shortSha,
+      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
+    };
+  }
+
+  // Any leftover non-empty line without explicit sha
+  return {
+    sha: trimmed.slice(0, 40),
+    shortSha: trimmed.slice(0, 7),
+    message: fallbackMessage,
+  };
+}
+
+/**
+ * Queries commits produced on candidate branch relative to Base Branch (baseBranch..targetBranch)
+ * in chronological order (oldest to newest).
+ * Tolerant to Git query errors and falls back gracefully to short SHAs with unavailable placeholder without throwing.
+ */
+export function getBranchCommits(
+  repoRoot: string,
+  baseBranch: string,
+  targetBranch: string,
+  options: GetBranchCommitsOptions = {},
+): readonly GitCommitInfo[] {
+  const runner = options.gitRunner ?? runExecCommand;
+  const fallbackMessage = options.fallbackMessage ?? DEFAULT_COMMIT_FALLBACK_MESSAGE;
+  const errorLog = options.errorLogger ?? console.error;
+
+  const targetRepo = resolve(repoRoot);
+  const range = `${baseBranch}..${targetBranch}`;
+  const gitLogCmd = `git log --reverse --format="%H%x1f%h%x1f%s" ${range}`;
+
+  try {
+    const outcome = runner(gitLogCmd, targetRepo);
+    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
+      const lines = outcome.stdout.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+      const commits: GitCommitInfo[] = [];
+      for (const line of lines) {
+        const parsed = parseCommitLine(line, fallbackMessage);
+        if (parsed) {
+          commits.push(parsed);
+        }
+      }
+      return Object.freeze(commits);
+    }
+
+    // Fallback: If git log failed or returned non-zero status
+    if (outcome.status !== 0) {
+      // Attempt rev-list fallback
+      try {
+        const revListRes = runner(`git rev-list --reverse ${range}`, targetRepo);
+        if (revListRes.status === 0 && revListRes.stdout.trim().length > 0) {
+          const hashes = revListRes.stdout.split(/\r?\n/).map((h) => h.trim()).filter((h) => h.length > 0);
+          const fallbackCommits = hashes.map((h) => ({
+            sha: h,
+            shortSha: h.slice(0, 7),
+            message: fallbackMessage,
+          }));
+          return Object.freeze(fallbackCommits);
+        }
+      } catch {
+        // Ignore rev-list failure
+      }
+
+      // If targetBranch itself looks like a commit hash (7-40 hex chars)
+      if (/^[0-9a-fA-F]{7,40}$/.test(targetBranch)) {
+        return Object.freeze([
+          {
+            sha: targetBranch,
+            shortSha: targetBranch.slice(0, 7),
+            message: fallbackMessage,
+          },
+        ]);
+      }
+    }
+
+    return Object.freeze([]);
+  } catch (err: unknown) {
+    // Never throw: fall back gracefully
+    const msg = err instanceof Error ? err.message : String(err);
+    if (options.errorLogger) {
+      errorLog(`[COMMIT-INSPECTION] Git query failed for ${range}: ${msg}`);
+    }
+
+    if (/^[0-9a-fA-F]{7,40}$/.test(targetBranch)) {
+      return Object.freeze([
+        {
+          sha: targetBranch,
+          shortSha: targetBranch.slice(0, 7),
+          message: fallbackMessage,
+        },
+      ]);
+    }
+
+    return Object.freeze([]);
+  }
+}
+
+/**
+ * Formats candidate branch commits with consistent indentation and unicode bullet markers ( • ).
+ * Overload 1: formatBranchCommitsSummary(branch, commits, options?)
+ * Overload 2: formatBranchCommitsSummary(commits, options?)
+ */
+export function formatBranchCommitsSummary(
+  branch: string,
+  commits: readonly GitCommitInfo[],
+  options?: FormatBranchCommitsOptions,
+): readonly string[];
+export function formatBranchCommitsSummary(
+  commits: readonly GitCommitInfo[],
+  options?: FormatBranchCommitsOptions,
+): readonly string[];
+export function formatBranchCommitsSummary(
+  firstArg: string | readonly GitCommitInfo[],
+  secondArg?: readonly GitCommitInfo[] | FormatBranchCommitsOptions,
+  thirdArg?: FormatBranchCommitsOptions,
+): readonly string[] {
+  let branchName: string | undefined;
+  let commits: readonly GitCommitInfo[] = [];
+  let options: FormatBranchCommitsOptions | undefined;
+
+  if (typeof firstArg === "string") {
+    branchName = firstArg;
+    commits = (secondArg as readonly GitCommitInfo[]) ?? [];
+    options = thirdArg;
+  } else {
+    commits = firstArg;
+    options = secondArg as FormatBranchCommitsOptions | undefined;
+  }
+
+  const branchIndent = options?.branchIndent ?? "  ";
+  const commitIndent = options?.commitIndent ?? "      ";
+  const lines: string[] = [];
+
+  if (branchName !== undefined) {
+    lines.push(`${branchIndent}${branchName.trim()}`);
+  }
+
+  if (commits.length === 0) {
+    if (options?.emptyPlaceholder) {
+      lines.push(`${commitIndent}${options.emptyPlaceholder}`);
+    }
+    return Object.freeze(lines);
+  }
+
+  for (const commit of commits) {
+    const shortSha = commit.shortSha || commit.sha.slice(0, 7);
+    lines.push(`${commitIndent}• ${shortSha} ${commit.message}`);
+  }
+
+  return Object.freeze(lines);
+}
+

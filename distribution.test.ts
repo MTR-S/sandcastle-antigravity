@@ -277,5 +277,37 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       );
       assert.match(context, /onSandboxReady/i, "CONTEXT.md must cite onSandboxReady hook");
     });
+
+    test("CONTEXT.md defines Iteration Commits in domain glossary under Orquestração e Isolamento (Issue #20)", () => {
+      const context = getContext();
+      assert.match(
+        context,
+        /Iteration Commits/i,
+        "CONTEXT.md must define Iteration Commits in domain glossary",
+      );
+      assert.match(
+        context,
+        /Implementer/i,
+        "CONTEXT.md Iteration Commits definition must reference Implementer role",
+      );
+      assert.match(
+        context,
+        /Reviewer/i,
+        "CONTEXT.md Iteration Commits definition must reference Reviewer role",
+      );
+      assert.match(
+        context,
+        /Merger/i,
+        "CONTEXT.md Iteration Commits definition must reference Merger role",
+      );
+    });
+
+    test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #20 Iteration Commits", () => {
+      const prd = getPrd();
+      assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
+      assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
+      assert.match(prd, /Spec #19/i, "docs/PRD.md must reference Spec #19");
+      assert.match(prd, /Issues? #20/i, "docs/PRD.md must reference Issue #20");
+    });
   });
 });

@@ -10,6 +10,12 @@ import {
   runBuildImage,
   type BuildImageOptions,
   type BuildImageResult,
+  getBranchCommits,
+  formatBranchCommitsSummary,
+  type GitCommitInfo,
+  type GetBranchCommitsOptions,
+  type FormatBranchCommitsOptions,
+  type OperationsGitRunner,
 } from "./operations.ts";
 
 export {
@@ -23,6 +29,12 @@ export {
   runBuildImage,
   type BuildImageOptions,
   type BuildImageResult,
+  getBranchCommits,
+  formatBranchCommitsSummary,
+  type GitCommitInfo,
+  type GetBranchCommitsOptions,
+  type FormatBranchCommitsOptions,
+  type OperationsGitRunner,
 };
 
 export type CliCommand =

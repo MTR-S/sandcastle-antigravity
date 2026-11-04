@@ -26,6 +26,10 @@ _Avoid_: branches ignoradas
 Comando determinístico de compilação e execução da suíte de testes próprio do Target Repository que valida se uma alteração mantém o sistema íntegro antes de commits ou merges.
 _Avoid_: linter isolado, build sem teste
 
+**Iteration Commits**:
+Conjunto de commits gerados pelos agentes *Implementer* e *Reviewer* nas branches de trabalho durante uma iteração do Phase Pipeline antes da consolidação pelo agente *Merger*.
+_Avoid_: commits intermediários, commits da branch, alterações locais, diff não consolidado
+
 ### Autenticação e Configuração
 
 **Host OAuth Session Bridge**:

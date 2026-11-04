@@ -93,5 +93,19 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Commits Git gerados no worktree da sandbox retêm a identidade dinâmica configurada sem vazamento de dados do host.
   - 100% dos testes unitários e de smoke continuam passando.
 
+### Ticket #8: Rastreamento e Exibição de Iteration Commits no Terminal Durante o Phase Pipeline (Spec #19 / Issues #20, #21, #22, #23)
+- **Escopo**:
+  - Registrar o conceito canônico de domínio `Iteration Commits` no glossário (`CONTEXT.md`).
+  - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`).
+  - Garantir resolução cronológica de commits (`baseBranch..branch`) com hashes de 7 caracteres e mensagens de assunto.
+  - Prover formatação consistente com recuo visual e marcadores bullet (` • `).
+  - Fornecer resiliência com fallback gracioso para short SHAs e marcador de mensagem indisponível sem disparar exceções.
+- **Critérios de Aceite**:
+  - Glossário em `CONTEXT.md` define `Iteration Commits` sob Orquestração e Isolamento.
+  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits` e `formatBranchCommitsSummary`.
+  - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos e cenários de fallback.
+  - 100% dos testes passam de forma determinística.
+
+
 
 
