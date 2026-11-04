@@ -97,12 +97,14 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 - **Escopo**:
   - Registrar o conceito canônico de domínio `Iteration Commits` no glossário (`CONTEXT.md`).
   - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`).
-  - Garantir resolução cronológica de commits (`baseBranch..branch`) com hashes de 7 caracteres e mensagens de assunto.
-  - Prover formatação consistente com recuo visual e marcadores bullet (` • `).
+  - Implementar costura de inspeção de commits pós-merge integrados na Base Branch em `operations.ts` (`getIntegratedCommits`, `formatIntegratedCommitsSummary`).
+  - Garantir resolução cronológica de commits (`baseBranch..branch` e `preMergeHead..postMergeHead`) com hashes de 7 caracteres, mensagens de assunto e inclusão de merge commits.
+  - Prover formatação consistente com recuo visual e marcadores bullet (` • `) sob branches candidatas e sob cabeçalho `Branches merged into <baseBranch>.`.
+  - Tratar cenários em que nenhum commit novo foi integrado (Base Branch já atualizada) informando claramente o estado.
   - Fornecer resiliência com fallback gracioso para short SHAs e marcador de mensagem indisponível sem disparar exceções.
 - **Critérios de Aceite**:
   - Glossário em `CONTEXT.md` define `Iteration Commits` sob Orquestração e Isolamento.
-  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits` e `formatBranchCommitsSummary`.
-  - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos e cenários de fallback.
+  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `getIntegratedCommits` e `formatIntegratedCommitsSummary`.
+  - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos, commits integrados pós-merge, commits de merge e cenários de fallback.
   - 100% dos testes passam de forma determinística.
 

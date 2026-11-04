@@ -639,7 +639,23 @@ export interface FormatBranchCommitsOptions {
   readonly emptyPlaceholder?: string;
 }
 
+export interface GetIntegratedCommitsOptions {
+  readonly gitRunner?: OperationsGitRunner;
+  readonly fallbackMessage?: string;
+  readonly logger?: (msg: string) => void;
+  readonly errorLogger?: (msg: string) => void;
+}
+
+export interface FormatIntegratedCommitsOptions {
+  readonly headerIndent?: string;
+  readonly commitIndent?: string;
+  readonly emptyPlaceholder?: string;
+  readonly upToDateMessage?: string;
+}
+
 export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
+export const DEFAULT_INTEGRATED_EMPTY_MESSAGE =
+  "(no new commits integrated; base branch already up to date)";
 
 function createCommit(
   rawSha: string,
@@ -816,6 +832,140 @@ export function formatBranchCommitsSummary(
   for (const commit of commits) {
     const shortSha = commit.shortSha || commit.sha.slice(0, 7);
     lines.push(`${commitIndent}• ${shortSha} ${commit.message}`);
+  }
+
+  return Object.freeze(lines);
+}
+
+/**
+ * Queries commits integrated into Base Branch between pre-merge and post-merge HEAD revisions.
+ * Handles single commits, multi-commit ranges, merge commits, and up-to-date branch conditions in chronological order.
+ * Tolerant to Git query errors and falls back gracefully to short SHAs with unavailable placeholder without throwing.
+ */
+export function getIntegratedCommits(
+  repoRoot: string,
+  preMergeHead: string,
+  postMergeHead: string,
+  options: GetIntegratedCommitsOptions = {},
+): readonly GitCommitInfo[] {
+  const runner = options.gitRunner ?? runExecCommand;
+  const fallbackMessage = options.fallbackMessage ?? DEFAULT_COMMIT_FALLBACK_MESSAGE;
+
+  const pre = preMergeHead?.trim() ?? "";
+  const post = postMergeHead?.trim() ?? "";
+
+  if (!pre || !post) {
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Invalid pre-merge or post-merge revisions: pre='${pre}', post='${post}'`,
+    );
+    return Object.freeze([]);
+  }
+
+  if (pre === post) {
+    return Object.freeze([]);
+  }
+
+  const targetRepo = resolve(repoRoot);
+  const range = `${pre}..${post}`;
+  const gitLogCmd = `git log --reverse --format="%H%x1f%h%x1f%s" ${range}`;
+
+  try {
+    const outcome = runner(gitLogCmd, targetRepo);
+    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
+      const commits = outcome.stdout
+        .split(/\r?\n/)
+        .map((line) => parseCommitLine(line, fallbackMessage))
+        .filter((commit): commit is GitCommitInfo => commit !== null);
+      return Object.freeze(commits);
+    }
+
+    if (outcome.status !== 0) {
+      try {
+        const revListRes = runner(`git rev-list --reverse ${range}`, targetRepo);
+        if (revListRes.status === 0 && revListRes.stdout.trim().length > 0) {
+          const fallbackCommits = revListRes.stdout
+            .split(/\r?\n/)
+            .map((h) => h.trim())
+            .filter((h) => h.length > 0)
+            .map((hash) => createCommit(hash, "", "", fallbackMessage));
+          return Object.freeze(fallbackCommits);
+        }
+      } catch {
+        // Ignore rev-list failure and continue to post SHA fallback
+      }
+
+      options.errorLogger?.(
+        `[COMMIT-INSPECTION] Git query failed for integrated commits ${range}: ${outcome.stderr}`,
+      );
+      return fallbackCommitForTargetBranch(post, fallbackMessage);
+    }
+
+    return Object.freeze([]);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Git query failed for integrated commits ${range}: ${msg}`,
+    );
+    return fallbackCommitForTargetBranch(post, fallbackMessage);
+  }
+}
+
+/**
+ * Formats integrated Base Branch commits under "Branches merged into <baseBranch>." with bullet markers ( • ).
+ * When no new commits were integrated, prints a clear confirmation that Base Branch is already up to date.
+ * Overload 1: formatIntegratedCommitsSummary(baseBranch, commits, options?)
+ * Overload 2: formatIntegratedCommitsSummary(commits, options?)
+ */
+export function formatIntegratedCommitsSummary(
+  baseBranch: string,
+  commits: readonly GitCommitInfo[],
+  options?: FormatIntegratedCommitsOptions,
+): readonly string[];
+export function formatIntegratedCommitsSummary(
+  commits: readonly GitCommitInfo[],
+  options?: FormatIntegratedCommitsOptions,
+): readonly string[];
+export function formatIntegratedCommitsSummary(
+  firstArg: string | readonly GitCommitInfo[],
+  secondArg?: readonly GitCommitInfo[] | FormatIntegratedCommitsOptions,
+  thirdArg?: FormatIntegratedCommitsOptions,
+): readonly string[] {
+  let baseBranch: string | undefined;
+  let commits: readonly GitCommitInfo[] = [];
+  let options: FormatIntegratedCommitsOptions | undefined;
+
+  if (typeof firstArg === "string") {
+    baseBranch = firstArg.trim();
+    commits = (secondArg as readonly GitCommitInfo[]) ?? [];
+    options = thirdArg;
+  } else {
+    commits = firstArg;
+    options = secondArg as FormatIntegratedCommitsOptions | undefined;
+  }
+
+  const headerIndent = options?.headerIndent ?? "";
+  const commitIndent = options?.commitIndent ?? "  ";
+  const emptyPlaceholder =
+    options?.emptyPlaceholder ??
+    options?.upToDateMessage ??
+    DEFAULT_INTEGRATED_EMPTY_MESSAGE;
+
+  const lines: string[] = [];
+
+  if (baseBranch !== undefined && baseBranch.length > 0) {
+    const branchSuffix = baseBranch.endsWith(".") ? baseBranch : `${baseBranch}.`;
+    lines.push(`${headerIndent}Branches merged into ${branchSuffix}`);
+  }
+
+  if (commits.length === 0) {
+    lines.push(`${commitIndent}${emptyPlaceholder}`);
+    return Object.freeze(lines);
+  }
+
+  for (const commit of commits) {
+    const shortSha = commit.shortSha || commit.sha.slice(0, 7);
+    const message = commit.message || DEFAULT_COMMIT_FALLBACK_MESSAGE;
+    lines.push(`${commitIndent}• ${shortSha} ${message}`);
   }
 
   return Object.freeze(lines);

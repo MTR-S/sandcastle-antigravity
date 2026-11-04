@@ -12,9 +12,15 @@ import {
   type BuildImageResult,
   getBranchCommits,
   formatBranchCommitsSummary,
+  getIntegratedCommits,
+  formatIntegratedCommitsSummary,
+  DEFAULT_COMMIT_FALLBACK_MESSAGE,
+  DEFAULT_INTEGRATED_EMPTY_MESSAGE,
   type GitCommitInfo,
   type GetBranchCommitsOptions,
   type FormatBranchCommitsOptions,
+  type GetIntegratedCommitsOptions,
+  type FormatIntegratedCommitsOptions,
   type OperationsGitRunner,
 } from "./operations.ts";
 
@@ -31,9 +37,15 @@ export {
   type BuildImageResult,
   getBranchCommits,
   formatBranchCommitsSummary,
+  getIntegratedCommits,
+  formatIntegratedCommitsSummary,
+  DEFAULT_COMMIT_FALLBACK_MESSAGE,
+  DEFAULT_INTEGRATED_EMPTY_MESSAGE,
   type GitCommitInfo,
   type GetBranchCommitsOptions,
   type FormatBranchCommitsOptions,
+  type GetIntegratedCommitsOptions,
+  type FormatIntegratedCommitsOptions,
   type OperationsGitRunner,
 };
 
