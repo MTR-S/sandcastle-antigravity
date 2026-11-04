@@ -1185,6 +1185,44 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
         );
       });
 
+      test("automatically resolves postMergeHead when options is passed directly as 4th argument", () => {
+        const executedCommands: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          executedCommands.push(cmd);
+          if (cmd.startsWith("git rev-parse")) {
+            return {
+              status: 0,
+              stdout: "post-merge-resolved-sha\n",
+              stderr: "",
+            };
+          }
+          if (cmd.includes("git log")) {
+            return {
+              status: 0,
+              stdout:
+                "99887766554433221100aabbccddeeff00112233\x1f9988776\x1ffeat: auto resolved post HEAD 4th arg\n",
+              stderr: "",
+            };
+          }
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = formatPhase3MergeSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          "pre-merge-sha",
+          { gitRunner: mockGitRunner },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], "Branches merged into feat/sc-agy.");
+        assert.equal(lines[1], "  • 9988776 feat: auto resolved post HEAD 4th arg");
+        assert.ok(
+          executedCommands.some((c) => c.includes("git rev-parse")),
+          "Should query rev-parse to resolve post-merge HEAD",
+        );
+      });
+
       test("supports custom indent and empty message options in Phase 3 summary", () => {
         const customMsg = "(all branches clean; no new commits)";
         const lines = formatPhase3MergeSummary(
@@ -1235,6 +1273,43 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
         assert.equal(logged.length, 2);
         assert.equal(logged[0], "Branches merged into feat/sc-agy.");
         assert.equal(logged[1], "  • 1122334 Render test commit");
+      });
+
+      test("renders Phase 3 summary when options is passed directly as 4th argument", () => {
+        const logged: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          if (cmd.startsWith("git rev-parse")) {
+            return {
+              status: 0,
+              stdout: "post-resolved\n",
+              stderr: "",
+            };
+          }
+          if (cmd.includes("git log")) {
+            return {
+              status: 0,
+              stdout:
+                "11223344556677889900aabbccddeeff00112233\x1f1122334\x1fRender test 4th arg\n",
+              stderr: "",
+            };
+          }
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = renderPhase3MergeSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          "pre-rev",
+          {
+            gitRunner: mockGitRunner,
+            logger: (line) => logged.push(line),
+          },
+        );
+
+        assert.deepEqual(logged, lines);
+        assert.equal(logged.length, 2);
+        assert.equal(logged[0], "Branches merged into feat/sc-agy.");
+        assert.equal(logged[1], "  • 1122334 Render test 4th arg");
       });
 
       test("defaults to console.log when logger option is omitted", () => {

@@ -1015,6 +1015,11 @@ export function renderPhase2ExecutionSummary(
   return lines;
 }
 
+function parseRevisionOutput(stdout: string): string {
+  const [firstLine = ""] = stdout.trim().split(/\r?\n/);
+  return firstLine.trim();
+}
+
 /**
  * Queries the HEAD revision (full commit hash) of the specified branch or ref in the target repository.
  * Defaults to "HEAD" when ref is omitted or empty.
@@ -1032,15 +1037,21 @@ export function getBranchHeadRevision(
 
   try {
     const outcome = runner(`git rev-parse ${ref}`, targetRepo);
-    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
-      return outcome.stdout.trim().split(/\r?\n/)[0].trim();
+    if (outcome.status === 0) {
+      const sha = parseRevisionOutput(outcome.stdout);
+      if (sha.length > 0) {
+        return sha;
+      }
     }
 
     if (ref !== "HEAD") {
       try {
         const headOutcome = runner("git rev-parse HEAD", targetRepo);
-        if (headOutcome.status === 0 && headOutcome.stdout.trim().length > 0) {
-          return headOutcome.stdout.trim().split(/\r?\n/)[0].trim();
+        if (headOutcome.status === 0) {
+          const headSha = parseRevisionOutput(headOutcome.stdout);
+          if (headSha.length > 0) {
+            return headSha;
+          }
         }
       } catch {
         // Ignore fallback failure
@@ -1070,13 +1081,29 @@ export function formatPhase3MergeSummary(
   repoRoot: string,
   baseBranch: string,
   preMergeHead: string,
+  options?: FormatPhase3MergeSummaryOptions,
+): readonly string[];
+export function formatPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
   postMergeHead?: string,
   options?: FormatPhase3MergeSummaryOptions,
+): readonly string[];
+export function formatPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
+  fourthArg?: string | FormatPhase3MergeSummaryOptions,
+  fifthArg?: FormatPhase3MergeSummaryOptions,
 ): readonly string[] {
+  const [postMergeHead, options] =
+    typeof fourthArg === "object" && fourthArg !== null
+      ? [undefined, fourthArg]
+      : [fourthArg, fifthArg];
+
   const resolvedPostHead =
-    postMergeHead !== undefined && postMergeHead !== null
-      ? postMergeHead
-      : getBranchHeadRevision(repoRoot, baseBranch, options);
+    postMergeHead ?? getBranchHeadRevision(repoRoot, baseBranch, options);
 
   const commits = getIntegratedCommits(repoRoot, preMergeHead, resolvedPostHead, options);
   return formatIntegratedCommitsSummary(baseBranch, commits, options);
@@ -1090,9 +1117,27 @@ export function renderPhase3MergeSummary(
   repoRoot: string,
   baseBranch: string,
   preMergeHead: string,
+  options?: RenderPhase3MergeSummaryOptions,
+): readonly string[];
+export function renderPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
   postMergeHead?: string,
   options?: RenderPhase3MergeSummaryOptions,
+): readonly string[];
+export function renderPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
+  fourthArg?: string | RenderPhase3MergeSummaryOptions,
+  fifthArg?: RenderPhase3MergeSummaryOptions,
 ): readonly string[] {
+  const [postMergeHead, options] =
+    typeof fourthArg === "object" && fourthArg !== null
+      ? [undefined, fourthArg]
+      : [fourthArg, fifthArg];
+
   const logger = options?.logger ?? console.log;
   const lines = formatPhase3MergeSummary(
     repoRoot,
