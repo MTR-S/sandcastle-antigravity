@@ -173,6 +173,11 @@ Before provisioning any containers or worktrees, an interactive banner displays 
 3. **Phase 3 (Review)**: An independent reviewer agent audits the code changes.
 4. **Phase 4 (Merge)**: Merges completed branches back into the base branch.
 
+> [!NOTE]
+> **Live Iteration Commits Summaries**:
+> - At the end of Phase 2 (*Execute + Review*), completed branches display all chronological *Iteration Commits* (Implementer + Reviewer) with bullet markers (` • <shortSha> <subject>`).
+> - At the end of Phase 4 (*Merge*), the terminal displays integrated Base Branch commits under `Branches merged into <baseBranch>.` (or confirms when already up to date).
+
 **Zero-Footprint**: The target repository is never polluted with orchestrator files; execution logs are archived in `sandcastle-antigravity/.sandcastle/logs/`.
 
 ---
@@ -364,6 +369,11 @@ Antes de iniciar qualquer container ou criar branches, o terminal exibirá o res
 2. **Phase 2 (Implement)**: Cria um *git worktree* isolado e roda o agente implementador dentro do container com caches montados (`~/.m2` ou `~/.npm`). O agente executa o comando de verificação para garantir que o código compila e passa nos testes.
 3. **Phase 3 (Review)**: O agente revisor audita o código gerado na mesma branch.
 4. **Phase 4 (Merge)**: O agente de merge mescla as alterações na branch base do projeto alvo.
+
+> [!NOTE]
+> **Sumários de Iteration Commits em Tempo Real**:
+> - Ao término da Fase 2 (*Execute + Review*), cada branch concluída exibe seus *Iteration Commits* em ordem cronológica (Implementer + Reviewer) com marcadores bullet (` • <shortSha> <subject>`).
+> - Ao término da Fase 4 (*Merge*), o terminal lista os commits integrados na Base Branch sob `Branches merged into <baseBranch>.` (ou confirma se a branch já estava atualizada).
 
 **Garantia Zero-Footprint**: O repositório alvo nunca é poluído com arquivos do orquestrador; os logs são preservados em `sandcastle-antigravity/.sandcastle/logs/`.
 

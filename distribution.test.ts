@@ -31,6 +31,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   const prdPath = resolve(packageRoot, "docs/PRD.md");
   const adr0003Path = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
   const adr0004Path = resolve(packageRoot, "docs/adr/0004-sequential-sandbox-git-identity.md");
+  const adr0005Path = resolve(packageRoot, "docs/adr/0005-iteration-commits-terminal-tracking.md");
   const contextPath = resolve(packageRoot, "CONTEXT.md");
 
   let cachedPrd: string | null = null;
@@ -58,6 +59,15 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       cachedAdr0004 = readFileSync(adr0004Path, "utf-8");
     }
     return cachedAdr0004;
+  };
+
+  let cachedAdr0005: string | null = null;
+  const getAdr0005 = (): string => {
+    if (cachedAdr0005 === null) {
+      assert.ok(existsSync(adr0005Path), "docs/adr/0005-iteration-commits-terminal-tracking.md must exist");
+      cachedAdr0005 = readFileSync(adr0005Path, "utf-8");
+    }
+    return cachedAdr0005;
   };
 
   let cachedContext: string | null = null;
@@ -217,6 +227,12 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
         "Must document sc-agy commands for testing and manual verification",
       );
     });
+
+    test("documents live Iteration Commits progress summaries in both English and Portuguese walkthroughs (Spec #19)", () => {
+      const howToTest = getHowToTest();
+      assert.match(howToTest, /Iteration Commits/i, "Must cite Iteration Commits in testing walkthrough");
+      assert.match(howToTest, /Branches merged into/i, "Must cite Phase 4 merge summary");
+    });
   });
 
   describe("CLI Help Usage Syntax & Compliance (Issue #18)", () => {
@@ -337,6 +353,32 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       );
       assert.match(prd, /getBranchHeadRevision/i, "docs/PRD.md must cite getBranchHeadRevision");
       assert.match(prd, /formatPhase3MergeSummary/i, "docs/PRD.md must cite formatPhase3MergeSummary");
+    });
+
+    test("docs/adr/0005-iteration-commits-terminal-tracking.md documents Iteration Commits architecture, options, and consequences (Spec #19)", () => {
+      const adr = getAdr0005();
+      assert.match(adr, /Iteration Commits/i, "ADR must define Iteration Commits");
+      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+      assert.match(adr, /Consequences/i, "ADR must outline consequences");
+      assert.match(adr, /Phase 2/i, "ADR must cover Phase 2 candidate branch inspection");
+      assert.match(adr, /Phase 3/i, "ADR must cover Phase 3 integrated Base Branch inspection");
+      assert.match(getReadme(), /0005-iteration-commits-terminal-tracking\.md/, "README.md must link to ADR 0005");
+    });
+
+    test("README.md documents Iteration Commits terminal progress tracking and phase summaries (Spec #19)", () => {
+      const readme = getReadme();
+      assert.match(readme, /Iteration Commits/i, "README.md must cite Iteration Commits");
+      assert.match(readme, /Execution complete/i, "README.md must document Phase 2 execution summary");
+      assert.match(readme, /Branches merged into/i, "README.md must document Phase 3 integrated merge summary");
+    });
+
+    test("docs/PRD.md documents Ticket #8 for Spec #19 with reference to ADR 0005", () => {
+      const prd = getPrd();
+      assert.match(
+        prd,
+        /0005-iteration-commits-terminal-tracking\.md/i,
+        "docs/PRD.md Ticket #8 must reference ADR 0005",
+      );
     });
   });
 });

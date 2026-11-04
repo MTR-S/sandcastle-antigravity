@@ -96,6 +96,7 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 ### Ticket #8: Rastreamento e Exibição de Iteration Commits no Terminal Durante o Phase Pipeline (Spec #19 / Issues #20, #21, #22, #23)
 - **Escopo**:
   - Registrar o conceito canônico de domínio `Iteration Commits` no glossário (`CONTEXT.md`).
+  - Documentar a arquitetura, alternativas consideradas e consequências no ADR correspondente (`docs/adr/0005-iteration-commits-terminal-tracking.md`).
   - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary`, `renderPhase2ExecutionSummary`).
   - Implementar costura de inspeção de commits pós-merge integrados na Base Branch em `operations.ts` (`getIntegratedCommits`, `formatIntegratedCommitsSummary`, `getBranchHeadRevision`, `formatPhase3MergeSummary`, `renderPhase3MergeSummary`).
   - Integrar a exibição de Iteration Commits no loop do orquestrador (`main.mts`) ao término da Fase 2 (Execute + Review) sob o sumário `Execution complete. N branch(es) with commits:` (Issue #21).

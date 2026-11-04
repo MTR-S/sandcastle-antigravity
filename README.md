@@ -27,11 +27,12 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 
 ## Architecture & Domain Documentation
 
-- **[`CONTEXT.md`](./CONTEXT.md)**: Canonical domain glossary (*Target Repository*, *Host OAuth Session Bridge*, *Phase Pipeline*, *Base Branch*, *Protected Branches*, *Verification Command*, *Pre-Run Configuration Banner*, *CLI Binary Alias*).
+- **[`CONTEXT.md`](./CONTEXT.md)**: Canonical domain glossary (*Target Repository*, *Host OAuth Session Bridge*, *Phase Pipeline*, *Base Branch*, *Protected Branches*, *Verification Command*, *Iteration Commits*, *Pre-Run Configuration Banner*, *CLI Binary Alias*).
 - **[`docs/adr/0001-host-oauth-session-bridge.md`](./docs/adr/0001-host-oauth-session-bridge.md)**: Architectural Decision Record for Cross-OS Keyring Bridging & Phase-Scoped Models.
 - **[`docs/adr/0002-standalone-multi-repo-cli.md`](./docs/adr/0002-standalone-multi-repo-cli.md)**: Architectural Decision Record for the Standalone Multi-Repo CLI & Interactive Pre-Run Inspection.
 - **[`docs/adr/0003-cli-binary-alias.md`](./docs/adr/0003-cli-binary-alias.md)**: Architectural Decision Record for the Official Shorthand Binary Alias (`sc-agy`) and CLI Argument Normalization.
 - **[`docs/adr/0004-sequential-sandbox-git-identity.md`](./docs/adr/0004-sequential-sandbox-git-identity.md)**: Architectural Decision Record for Sequential Sandbox Git Identity Configuration and `.gitconfig.lock` Race Elimination.
+- **[`docs/adr/0005-iteration-commits-terminal-tracking.md`](./docs/adr/0005-iteration-commits-terminal-tracking.md)**: Architectural Decision Record for Tracking and Displaying Iteration Commits in Terminal During Phase Pipeline Iterations.
 - **[`docs/PRD.md`](./docs/PRD.md)**: Product Requirements Document & Ticket Breakdown for the standalone CLI transition.
 - **[`docs/HOW_TO_TEST.md`](./docs/HOW_TO_TEST.md)**: Step-by-Step Testing & Onboarding Guide (Full walkthrough from scratch for testing on any local project).
 
@@ -201,6 +202,32 @@ When invoked without `--yes`, `sandcastle-agy run` presents an interactive termi
 - **[Confirm and Start]**: Starts the multi-agent loop immediately.
 - **[Change a configuration now]**: Allows interactive editing of base branch, protected branches, GitHub account/token, Git author identity, verification command, issue label filter, or role-scoped models.
 - **[Cancel]**: Aborts without modifying any repository state.
+
+#### Live Iteration Commits Terminal Tracking & Phase Summaries
+
+Throughout each iteration of the Phase Pipeline, the orchestrator inspects the Target Repository and displays formatted *Iteration Commits* directly in your terminal at two key milestones:
+
+1. **Phase 2 Completion (Candidate Branches Execution Summary)**:
+   Immediately following parallel Implementer and Reviewer execution, the terminal lists all completed candidate branches along with their chronological commits with 7-character short SHAs and bullet markers (` • `):
+   ```text
+   Execution complete. 1 branch(es) with commits:
+     sandcastle/issue-18
+         • a1b2c3d Update CLI help usage syntax and distribution documentation for sc-agy
+         • e4f2692 refactor(operations): improve commit line parsing and seam maintainability
+   ```
+
+2. **Phase 3 Completion (Integrated Base Branch Summary)**:
+   Following merger agent execution, the terminal confirms which commits were successfully integrated into the Base Branch:
+   ```text
+   Branches merged into develop.
+     • a1b2c3d Update CLI help usage syntax and distribution documentation for sc-agy
+     • e4f2692 refactor(operations): improve commit line parsing and seam maintainability
+   ```
+   If no new commits were integrated, it clearly confirms:
+   ```text
+   Branches merged into develop.
+     (no new commits integrated; base branch already up to date)
+   ```
 
 #### Zero-Footprint Target Repository Guarantee
 
