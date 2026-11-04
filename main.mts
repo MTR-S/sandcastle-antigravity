@@ -43,7 +43,10 @@ import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
 import { parseCliArgs, validateCliArgs, dispatchCli } from "./cli.ts";
-import { cleanupTargetRepository } from "./operations.ts";
+import {
+  cleanupTargetRepository,
+  formatPhase2ExecutionSummary,
+} from "./operations.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
@@ -401,8 +404,13 @@ try {
   console.log(
     `\nExecution complete. ${completedBranches.length} branch(es) with commits:`,
   );
-  for (const branch of completedBranches) {
-    console.log(`  ${branch}`);
+  const phase2SummaryLines = formatPhase2ExecutionSummary(
+    repoRoot,
+    activeBaseBranch,
+    completedBranches,
+  );
+  for (const line of phase2SummaryLines) {
+    console.log(line);
   }
 
   if (completedBranches.length === 0) {

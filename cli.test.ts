@@ -746,5 +746,13 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
         "package.json bin must expose sc-agy alias pointing to ./main.mts or ./cli.mts",
       );
     });
+
+    test("cli.ts re-exports formatPhase2ExecutionSummary and renderPhase2ExecutionSummary for CLI consumers (Issue #21)", async () => {
+      const cliModule = await import("./cli.ts");
+      assert.equal(typeof cliModule.formatPhase2ExecutionSummary, "function");
+      assert.equal(typeof cliModule.renderPhase2ExecutionSummary, "function");
+      assert.equal(typeof cliModule.getBranchCommits, "function");
+      assert.equal(typeof cliModule.formatBranchCommitsSummary, "function");
+    });
   });
 });

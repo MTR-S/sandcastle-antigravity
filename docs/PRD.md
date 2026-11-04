@@ -96,13 +96,15 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 ### Ticket #8: Rastreamento e Exibição de Iteration Commits no Terminal Durante o Phase Pipeline (Spec #19 / Issues #20, #21, #22, #23)
 - **Escopo**:
   - Registrar o conceito canônico de domínio `Iteration Commits` no glossário (`CONTEXT.md`).
-  - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`).
-  - Garantir resolução cronológica de commits (`baseBranch..branch`) com hashes de 7 caracteres e mensagens de assunto.
+  - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary`, `renderPhase2ExecutionSummary`).
+  - Integrar a exibição de Iteration Commits no loop do orquestrador (`main.mts`) ao término da Fase 2 (Execute + Review) sob o sumário `Execution complete. N branch(es) with commits:` (Issue #21).
+  - Garantir resolução cronológica de commits (`baseBranch..branch`) com hashes de 7 caracteres e mensagens de assunto (cobrindo commits de Implementer e Reviewer).
   - Prover formatação consistente com recuo visual e marcadores bullet (` • `).
-  - Fornecer resiliência com fallback gracioso para short SHAs e marcador de mensagem indisponível sem disparar exceções.
+  - Fornecer resiliência com fallback gracioso para short SHAs e marcador de mensagem indisponível sem disparar exceções, assegurando que o pipeline continue ininterrupto.
 - **Critérios de Aceite**:
   - Glossário em `CONTEXT.md` define `Iteration Commits` sob Orquestração e Isolamento.
-  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits` e `formatBranchCommitsSummary`.
-  - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos e cenários de fallback.
+  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary` e `renderPhase2ExecutionSummary`.
+  - Orquestrador em `main.mts` substitui a listagem simples de branches por blocos formatados de branches e commits na Fase 2.
+  - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos de Implementer + Reviewer e cenários de fallback.
   - 100% dos testes passam de forma determinística.
 

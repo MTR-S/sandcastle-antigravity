@@ -309,5 +309,17 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       assert.match(prd, /Spec #19/i, "docs/PRD.md must reference Spec #19");
       assert.match(prd, /Issues? #20/i, "docs/PRD.md must reference Issue #20");
     });
+
+    test("docs/PRD.md documents Ticket #8 for Spec #19 / Issue #21 Phase 2 Iteration Commits execution summary", () => {
+      const prd = getPrd();
+      assert.match(prd, /Ticket #8/i, "docs/PRD.md must document Ticket #8");
+      assert.match(prd, /Iteration Commits/i, "docs/PRD.md must cite Iteration Commits");
+      assert.match(prd, /Issue #21/i, "docs/PRD.md must reference Issue #21");
+      assert.match(
+        prd,
+        /Phase 2|Fase 2/i,
+        "docs/PRD.md Ticket #8 must reference Phase 2 execution summary",
+      );
+    });
   });
 });

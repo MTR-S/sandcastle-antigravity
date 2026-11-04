@@ -639,6 +639,15 @@ export interface FormatBranchCommitsOptions {
   readonly emptyPlaceholder?: string;
 }
 
+export interface FormatPhase2ExecutionSummaryOptions
+  extends GetBranchCommitsOptions,
+    FormatBranchCommitsOptions {}
+
+export interface RenderPhase2ExecutionSummaryOptions
+  extends FormatPhase2ExecutionSummaryOptions {
+  readonly logger?: (line: string) => void;
+}
+
 export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
 
 function createCommit(
@@ -820,4 +829,44 @@ export function formatBranchCommitsSummary(
 
   return Object.freeze(lines);
 }
+
+/**
+ * Formats Phase 2 candidate branch execution summary lines with chronological Iteration Commits.
+ * For each completed candidate branch, formats the branch header and its chronological commits
+ * with unicode bullet markers ( • ).
+ * Resilient against Git query errors or missing commits, continuing without throwing.
+ */
+export function formatPhase2ExecutionSummary(
+  repoRoot: string,
+  baseBranch: string,
+  branches: readonly string[],
+  options?: FormatPhase2ExecutionSummaryOptions,
+): readonly string[] {
+  const lines: string[] = [];
+  for (const branch of branches) {
+    const commits = getBranchCommits(repoRoot, baseBranch, branch, options);
+    const branchLines = formatBranchCommitsSummary(branch, commits, options);
+    lines.push(...branchLines);
+  }
+  return Object.freeze(lines);
+}
+
+/**
+ * Displays Phase 2 candidate branch execution summary in terminal.
+ * Delegates to formatPhase2ExecutionSummary and outputs each line via options.logger (defaults to console.log).
+ */
+export function renderPhase2ExecutionSummary(
+  repoRoot: string,
+  baseBranch: string,
+  branches: readonly string[],
+  options?: RenderPhase2ExecutionSummaryOptions,
+): readonly string[] {
+  const logger = options?.logger ?? console.log;
+  const lines = formatPhase2ExecutionSummary(repoRoot, baseBranch, branches, options);
+  for (const line of lines) {
+    logger(line);
+  }
+  return lines;
+}
+
 

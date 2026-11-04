@@ -12,9 +12,13 @@ import {
   type BuildImageResult,
   getBranchCommits,
   formatBranchCommitsSummary,
+  formatPhase2ExecutionSummary,
+  renderPhase2ExecutionSummary,
   type GitCommitInfo,
   type GetBranchCommitsOptions,
   type FormatBranchCommitsOptions,
+  type FormatPhase2ExecutionSummaryOptions,
+  type RenderPhase2ExecutionSummaryOptions,
   type OperationsGitRunner,
 } from "./operations.ts";
 
@@ -31,9 +35,13 @@ export {
   type BuildImageResult,
   getBranchCommits,
   formatBranchCommitsSummary,
+  formatPhase2ExecutionSummary,
+  renderPhase2ExecutionSummary,
   type GitCommitInfo,
   type GetBranchCommitsOptions,
   type FormatBranchCommitsOptions,
+  type FormatPhase2ExecutionSummaryOptions,
+  type RenderPhase2ExecutionSummaryOptions,
   type OperationsGitRunner,
 };
 
