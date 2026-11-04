@@ -106,6 +106,3 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos e cenários de fallback.
   - 100% dos testes passam de forma determinística.
 
-
-
-

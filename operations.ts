@@ -641,87 +641,75 @@ export interface FormatBranchCommitsOptions {
 
 export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
 
+function createCommit(
+  rawSha: string,
+  rawShortSha: string,
+  rawMessage: string,
+  fallbackMessage: string,
+): GitCommitInfo {
+  const sha = rawSha.trim();
+  const shortSha = rawShortSha.trim() || sha.slice(0, 7);
+  const trimmedMessage = rawMessage.trim();
+  return {
+    sha,
+    shortSha: shortSha || sha.slice(0, 7),
+    message: trimmedMessage.length > 0 ? trimmedMessage : fallbackMessage,
+  };
+}
+
+function fallbackCommitForTargetBranch(
+  targetBranch: string,
+  fallbackMessage: string,
+): readonly GitCommitInfo[] {
+  if (/^[0-9a-fA-F]{7,40}$/.test(targetBranch)) {
+    return Object.freeze([createCommit(targetBranch, "", "", fallbackMessage)]);
+  }
+  return Object.freeze([]);
+}
+
 /**
  * Parses a single line from git log output into a GitCommitInfo structure.
  * Supports unit-separator delimited output, tab-delimited output, and space-separated lines.
  */
-export function parseCommitLine(line: string, fallbackMessage: string = DEFAULT_COMMIT_FALLBACK_MESSAGE): GitCommitInfo | null {
+export function parseCommitLine(
+  line: string,
+  fallbackMessage: string = DEFAULT_COMMIT_FALLBACK_MESSAGE,
+): GitCommitInfo | null {
   const trimmed = line.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
-  // 1. Check unit-separator delimiter (\x1f)
+  // 1. Delimited line: unit-separator (\x1f) or tab (\t)
+  let delimiter: string | null = null;
   if (trimmed.includes("\x1f")) {
-    const parts = trimmed.split("\x1f");
-    const sha = parts[0]?.trim() || "";
-    const shortSha = parts[1]?.trim() || sha.slice(0, 7);
-    const rawMessage = parts.slice(2).join("\x1f").trim();
-    const message = rawMessage.length > 0 ? rawMessage : fallbackMessage;
-    return {
-      sha,
-      shortSha: shortSha || sha.slice(0, 7),
-      message,
-    };
+    delimiter = "\x1f";
+  } else if (trimmed.includes("\t")) {
+    delimiter = "\t";
   }
 
-  // 2. Check tab delimiter
-  if (trimmed.includes("\t")) {
-    const parts = trimmed.split("\t");
-    const sha = parts[0]?.trim() || "";
-    const shortSha = (parts.length > 2 ? parts[1]?.trim() : "") || sha.slice(0, 7);
-    const rawMessage = (parts.length > 2 ? parts.slice(2).join("\t") : parts[1] || "").trim();
-    const message = rawMessage.length > 0 ? rawMessage : fallbackMessage;
-    return {
-      sha,
-      shortSha: shortSha || sha.slice(0, 7),
-      message,
-    };
+  if (delimiter) {
+    const parts = trimmed.split(delimiter);
+    if (parts.length > 2) {
+      return createCommit(parts[0], parts[1], parts.slice(2).join(delimiter), fallbackMessage);
+    }
+    return createCommit(parts[0], "", parts[1] ?? "", fallbackMessage);
   }
 
-  // 3. Regex matching standard git log lines:
-  // e.g. "40-hex 7-hex Subject message"
-  const fullAndShortMatch = trimmed.match(/^([0-9a-fA-F]{40})\s+([0-9a-fA-F]{7,12})\s*(.*)$/);
-  if (fullAndShortMatch) {
-    const sha = fullAndShortMatch[1];
-    const shortSha = fullAndShortMatch[2];
-    const rawMsg = fullAndShortMatch[3].trim();
-    return {
-      sha,
-      shortSha,
-      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
-    };
+  // 2. Space-separated format: full SHA + short SHA + subject
+  const compoundMatch = trimmed.match(/^([0-9a-fA-F]{40})\s+([0-9a-fA-F]{7,12})\s*(.*)$/);
+  if (compoundMatch) {
+    return createCommit(compoundMatch[1], compoundMatch[2], compoundMatch[3], fallbackMessage);
   }
 
-  // e.g. "40-hex Subject message"
-  const fullMatch = trimmed.match(/^([0-9a-fA-F]{40})\s*(.*)$/);
-  if (fullMatch) {
-    const sha = fullMatch[1];
-    const shortSha = sha.slice(0, 7);
-    const rawMsg = fullMatch[2].trim();
-    return {
-      sha,
-      shortSha,
-      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
-    };
+  // 3. Space-separated format: single SHA (7-40 hex) + subject
+  const singleMatch = trimmed.match(/^([0-9a-fA-F]{7,40})\s*(.*)$/);
+  if (singleMatch) {
+    return createCommit(singleMatch[1], "", singleMatch[2], fallbackMessage);
   }
 
-  // e.g. "7-12 hex Subject message"
-  const shortMatch = trimmed.match(/^([0-9a-fA-F]{7,12})\s*(.*)$/);
-  if (shortMatch) {
-    const shortSha = shortMatch[1].slice(0, 7);
-    const rawMsg = shortMatch[2].trim();
-    return {
-      sha: shortMatch[1],
-      shortSha,
-      message: rawMsg.length > 0 ? rawMsg : fallbackMessage,
-    };
-  }
-
-  // Any leftover non-empty line without explicit sha
-  return {
-    sha: trimmed.slice(0, 40),
-    shortSha: trimmed.slice(0, 7),
-    message: fallbackMessage,
-  };
+  // 4. Fallback for non-empty text without recognizable SHA
+  return createCommit(trimmed.slice(0, 40), "", "", fallbackMessage);
 }
 
 /**
@@ -737,7 +725,6 @@ export function getBranchCommits(
 ): readonly GitCommitInfo[] {
   const runner = options.gitRunner ?? runExecCommand;
   const fallbackMessage = options.fallbackMessage ?? DEFAULT_COMMIT_FALLBACK_MESSAGE;
-  const errorLog = options.errorLogger ?? console.error;
 
   const targetRepo = resolve(repoRoot);
   const range = `${baseBranch}..${targetBranch}`;
@@ -746,66 +733,36 @@ export function getBranchCommits(
   try {
     const outcome = runner(gitLogCmd, targetRepo);
     if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
-      const lines = outcome.stdout.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-      const commits: GitCommitInfo[] = [];
-      for (const line of lines) {
-        const parsed = parseCommitLine(line, fallbackMessage);
-        if (parsed) {
-          commits.push(parsed);
-        }
-      }
+      const commits = outcome.stdout
+        .split(/\r?\n/)
+        .map((line) => parseCommitLine(line, fallbackMessage))
+        .filter((commit): commit is GitCommitInfo => commit !== null);
       return Object.freeze(commits);
     }
 
-    // Fallback: If git log failed or returned non-zero status
     if (outcome.status !== 0) {
-      // Attempt rev-list fallback
       try {
         const revListRes = runner(`git rev-list --reverse ${range}`, targetRepo);
         if (revListRes.status === 0 && revListRes.stdout.trim().length > 0) {
-          const hashes = revListRes.stdout.split(/\r?\n/).map((h) => h.trim()).filter((h) => h.length > 0);
-          const fallbackCommits = hashes.map((h) => ({
-            sha: h,
-            shortSha: h.slice(0, 7),
-            message: fallbackMessage,
-          }));
+          const fallbackCommits = revListRes.stdout
+            .split(/\r?\n/)
+            .map((h) => h.trim())
+            .filter((h) => h.length > 0)
+            .map((hash) => createCommit(hash, "", "", fallbackMessage));
           return Object.freeze(fallbackCommits);
         }
       } catch {
-        // Ignore rev-list failure
+        // Ignore rev-list failure and continue to branch hash fallback
       }
 
-      // If targetBranch itself looks like a commit hash (7-40 hex chars)
-      if (/^[0-9a-fA-F]{7,40}$/.test(targetBranch)) {
-        return Object.freeze([
-          {
-            sha: targetBranch,
-            shortSha: targetBranch.slice(0, 7),
-            message: fallbackMessage,
-          },
-        ]);
-      }
+      return fallbackCommitForTargetBranch(targetBranch, fallbackMessage);
     }
 
     return Object.freeze([]);
   } catch (err: unknown) {
-    // Never throw: fall back gracefully
     const msg = err instanceof Error ? err.message : String(err);
-    if (options.errorLogger) {
-      errorLog(`[COMMIT-INSPECTION] Git query failed for ${range}: ${msg}`);
-    }
-
-    if (/^[0-9a-fA-F]{7,40}$/.test(targetBranch)) {
-      return Object.freeze([
-        {
-          sha: targetBranch,
-          shortSha: targetBranch.slice(0, 7),
-          message: fallbackMessage,
-        },
-      ]);
-    }
-
-    return Object.freeze([]);
+    options.errorLogger?.(`[COMMIT-INSPECTION] Git query failed for ${range}: ${msg}`);
+    return fallbackCommitForTargetBranch(targetBranch, fallbackMessage);
   }
 }
 
@@ -833,7 +790,7 @@ export function formatBranchCommitsSummary(
   let options: FormatBranchCommitsOptions | undefined;
 
   if (typeof firstArg === "string") {
-    branchName = firstArg;
+    branchName = firstArg.trim();
     commits = (secondArg as readonly GitCommitInfo[]) ?? [];
     options = thirdArg;
   } else {
@@ -846,7 +803,7 @@ export function formatBranchCommitsSummary(
   const lines: string[] = [];
 
   if (branchName !== undefined) {
-    lines.push(`${branchIndent}${branchName.trim()}`);
+    lines.push(`${branchIndent}${branchName}`);
   }
 
   if (commits.length === 0) {

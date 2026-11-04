@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getBranchCommits,
   formatBranchCommitsSummary,
+  parseCommitLine,
   type GitCommitInfo,
 } from "./operations.ts";
 
@@ -225,6 +226,47 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
 
       assert.equal(commits[2].shortSha, "f7a8b9c");
       assert.equal(commits[2].message, "chore: housekeeping");
+    });
+
+    test("returns empty array when git log reports no commits in range", () => {
+      const mockGitRunner = () => ({
+        status: 0,
+        stdout: "\n",
+        stderr: "",
+      });
+
+      const commits = getBranchCommits(
+        "/mock/repo",
+        "feat/sc-agy",
+        "sandcastle/issue-20",
+        { gitRunner: mockGitRunner },
+      );
+
+      assert.deepEqual(commits, []);
+    });
+
+    test("parseCommitLine handles tab-delimited outputs and empty lines", () => {
+      // 3-part tab-delimited: full SHA, short SHA, message
+      const threePart = parseCommitLine(
+        "a1b2c3d4e5f67890123456789012345678901234\ta1b2c3d\tfeat: tab delimited 3 parts",
+      );
+      assert.notEqual(threePart, null);
+      assert.equal(threePart?.sha, "a1b2c3d4e5f67890123456789012345678901234");
+      assert.equal(threePart?.shortSha, "a1b2c3d");
+      assert.equal(threePart?.message, "feat: tab delimited 3 parts");
+
+      // 2-part tab-delimited: full SHA, message
+      const twoPart = parseCommitLine(
+        "b2c3d4e5f6789012345678901234567890123456\tfix: tab delimited 2 parts",
+      );
+      assert.notEqual(twoPart, null);
+      assert.equal(twoPart?.sha, "b2c3d4e5f6789012345678901234567890123456");
+      assert.equal(twoPart?.shortSha, "b2c3d4e");
+      assert.equal(twoPart?.message, "fix: tab delimited 2 parts");
+
+      // Empty or whitespace lines
+      assert.equal(parseCommitLine(""), null);
+      assert.equal(parseCommitLine("   \n\t  "), null);
     });
   });
 
