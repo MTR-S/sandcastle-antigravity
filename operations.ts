@@ -639,10 +639,16 @@ export interface FormatBranchCommitsOptions {
   readonly emptyPlaceholder?: string;
 }
 
+/**
+ * Options for configuring Phase 2 candidate branch commit querying and summary formatting.
+ */
 export interface FormatPhase2ExecutionSummaryOptions
   extends GetBranchCommitsOptions,
     FormatBranchCommitsOptions {}
 
+/**
+ * Options for rendering Phase 2 candidate branch execution summary to terminal or custom logger.
+ */
 export interface RenderPhase2ExecutionSummaryOptions
   extends FormatPhase2ExecutionSummaryOptions {
   readonly logger?: (line: string) => void;
@@ -844,8 +850,12 @@ export function formatPhase2ExecutionSummary(
 ): readonly string[] {
   const lines: string[] = [];
   for (const branch of branches) {
-    const commits = getBranchCommits(repoRoot, baseBranch, branch, options);
-    const branchLines = formatBranchCommitsSummary(branch, commits, options);
+    const trimmedBranch = branch.trim();
+    if (!trimmedBranch) {
+      continue;
+    }
+    const commits = getBranchCommits(repoRoot, baseBranch, trimmedBranch, options);
+    const branchLines = formatBranchCommitsSummary(trimmedBranch, commits, options);
     lines.push(...branchLines);
   }
   return Object.freeze(lines);
@@ -868,5 +878,4 @@ export function renderPhase2ExecutionSummary(
   }
   return lines;
 }
-
 

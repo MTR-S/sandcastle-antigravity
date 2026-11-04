@@ -505,6 +505,50 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
         );
         assert.deepEqual(lines, []);
       });
+
+      test("skips empty or whitespace-only branch entries cleanly", () => {
+        const mockGitRunner = () => ({
+          status: 0,
+          stdout:
+            "08f0e65ce7d4df3da458063f18e3de2b817ef0cc\x1f08f0e65\x1fRegister sc-agy binary alias\n",
+          stderr: "",
+        });
+
+        const lines = formatPhase2ExecutionSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          ["", "   ", "sandcastle/issue-18", "\t"],
+          { gitRunner: mockGitRunner },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], "  sandcastle/issue-18");
+        assert.equal(lines[1], "      • 08f0e65 Register sc-agy binary alias");
+      });
+
+      test("forwards custom branchIndent and commitIndent formatting options", () => {
+        const mockGitRunner = () => ({
+          status: 0,
+          stdout:
+            "08f0e65ce7d4df3da458063f18e3de2b817ef0cc\x1f08f0e65\x1fRegister sc-agy binary alias\n",
+          stderr: "",
+        });
+
+        const lines = formatPhase2ExecutionSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          ["sandcastle/issue-18"],
+          {
+            gitRunner: mockGitRunner,
+            branchIndent: " > ",
+            commitIndent: "   - ",
+          },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], " > sandcastle/issue-18");
+        assert.equal(lines[1], "   - • 08f0e65 Register sc-agy binary alias");
+      });
     });
 
     describe("renderPhase2ExecutionSummary", () => {
@@ -531,6 +575,34 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
         assert.equal(logged.length, 2);
         assert.equal(logged[0], "  sandcastle/issue-21");
         assert.equal(logged[1], "      • a1b2c3d feat: test commit");
+      });
+
+      test("defaults to console.log when logger option is omitted", () => {
+        const originalLog = console.log;
+        const logged: string[] = [];
+        console.log = (msg: string) => {
+          logged.push(msg);
+        };
+        try {
+          const mockGitRunner = () => ({
+            status: 0,
+            stdout:
+              "a1b2c3d4e5f67890123456789012345678901234\x1fa1b2c3d\x1ffeat: test commit\n",
+            stderr: "",
+          });
+
+          const lines = renderPhase2ExecutionSummary(
+            "/mock/repo",
+            "feat/sc-agy",
+            ["sandcastle/issue-21"],
+            { gitRunner: mockGitRunner },
+          );
+
+          assert.deepEqual(logged, lines);
+          assert.equal(logged.length, 2);
+        } finally {
+          console.log = originalLog;
+        }
       });
     });
 
