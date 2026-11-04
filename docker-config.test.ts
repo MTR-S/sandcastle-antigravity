@@ -2,9 +2,9 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { getSandboxEnv, getSandboxMounts } from "./docker-config.ts";
+import { getSandboxEnv, getSandboxMounts, getSandboxHooks } from "./docker-config.ts";
 
-describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
+describe("Docker Container & Git Identity Decoupling (Issue #6, Issue #26)", () => {
   const repoRoot = existsSync(".git") ? process.cwd() : resolve(process.cwd(), "..");
   const dockerfilePath = resolve(repoRoot, "Dockerfile");
   const entrypointPath = resolve(repoRoot, "entrypoint.sh");
@@ -187,8 +187,28 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
     });
   });
 
-  describe("Seam 3: Container entrypoint dynamic Git identity specification", () => {
-    test("entrypoint.sh configures git user.name and user.email from environment variables", () => {
+  describe("Seam 3: Container entrypoint dynamic Git identity specification (Issue #6, Issue #26)", () => {
+    test("entrypoint.sh safely removes stale .gitconfig.lock upon boot", () => {
+      const entrypointContent = readFileSync(entrypointPath, "utf-8");
+
+      assert.match(
+        entrypointContent,
+        /rm\s+-f\s+["']?\$HOME\/\.gitconfig\.lock["']?/,
+        "entrypoint.sh must safely remove stale .gitconfig.lock upon boot to prevent orphan lock errors",
+      );
+    });
+
+    test("entrypoint.sh eliminates uncoordinated git config mutations during boot to avoid race condition", () => {
+      const entrypointContent = readFileSync(entrypointPath, "utf-8");
+
+      assert.doesNotMatch(
+        entrypointContent,
+        /git\s+config\s+--global/,
+        "entrypoint.sh must not mutate global git config during container boot",
+      );
+    });
+
+    test("entrypoint.sh exports GIT_AUTHOR_* and GIT_COMMITTER_* from environment variables", () => {
       const entrypointContent = readFileSync(entrypointPath, "utf-8");
 
       assert.match(
@@ -198,8 +218,13 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
       );
       assert.match(
         entrypointContent,
-        /git\s+config\s+--global\s+user\.name\s+["']\$GIT_USER_NAME["']/,
-        "entrypoint.sh must dynamically configure git user.name from $GIT_USER_NAME",
+        /export\s+GIT_AUTHOR_NAME=["']\$GIT_USER_NAME["']/,
+        "entrypoint.sh must export GIT_AUTHOR_NAME from $GIT_USER_NAME",
+      );
+      assert.match(
+        entrypointContent,
+        /export\s+GIT_COMMITTER_NAME=["']\$GIT_USER_NAME["']/,
+        "entrypoint.sh must export GIT_COMMITTER_NAME from $GIT_USER_NAME",
       );
       assert.match(
         entrypointContent,
@@ -208,8 +233,13 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
       );
       assert.match(
         entrypointContent,
-        /git\s+config\s+--global\s+user\.email\s+["']\$GIT_USER_EMAIL["']/,
-        "entrypoint.sh must dynamically configure git user.email from $GIT_USER_EMAIL",
+        /export\s+GIT_AUTHOR_EMAIL=["']\$GIT_USER_EMAIL["']/,
+        "entrypoint.sh must export GIT_AUTHOR_EMAIL from $GIT_USER_EMAIL",
+      );
+      assert.match(
+        entrypointContent,
+        /export\s+GIT_COMMITTER_EMAIL=["']\$GIT_USER_EMAIL["']/,
+        "entrypoint.sh must export GIT_COMMITTER_EMAIL from $GIT_USER_EMAIL",
       );
     });
 
@@ -225,6 +255,114 @@ describe("Docker Container & Git Identity Decoupling (Issue #6)", () => {
         entrypointContent,
         /if\s+\[\s+-n\s+"\$GIT_USER_EMAIL"\s+\]/,
         "entrypoint.sh must check if GIT_USER_EMAIL is non-empty before configuring",
+      );
+    });
+  });
+
+  describe("Seam 4: Sequential sandbox Git identity lifecycle hooks (Issue #26)", () => {
+    test("getSandboxHooks builds empty hooks when identity and env are undefined", () => {
+      const hooks = getSandboxHooks();
+
+      assert.deepEqual(hooks, {
+        sandbox: {
+          onSandboxReady: [],
+        },
+      });
+      assert.ok(Object.isFrozen(hooks), "hooks must be frozen");
+      assert.ok(Object.isFrozen(hooks.sandbox), "sandbox hooks must be frozen");
+      assert.ok(Object.isFrozen(hooks.sandbox?.onSandboxReady), "onSandboxReady must be frozen");
+    });
+
+    test("getSandboxHooks builds sequential git config compound command from GitIdentityInput", () => {
+      const hooks = getSandboxHooks({
+        name: "Dynamic Agent",
+        email: "agent@sandcastle-dynamic.org",
+      });
+
+      assert.deepEqual(hooks.sandbox?.onSandboxReady, [
+        {
+          command:
+            'git config --global user.name "Dynamic Agent" && git config --global user.email "agent@sandcastle-dynamic.org"',
+        },
+      ]);
+    });
+
+    test("getSandboxHooks builds sequential compound command from environment dictionary", () => {
+      const hooks = getSandboxHooks({
+        GIT_USER_NAME: "Env Agent",
+        GIT_USER_EMAIL: "env-agent@example.com",
+      });
+
+      assert.deepEqual(hooks.sandbox?.onSandboxReady, [
+        {
+          command:
+            'git config --global user.name "Env Agent" && git config --global user.email "env-agent@example.com"',
+        },
+      ]);
+    });
+
+    test("getSandboxHooks escapes double quotes in git identity strings", () => {
+      const hooks = getSandboxHooks({
+        name: 'Agent "Danger" Smith',
+        email: 'danger"smith@example.com',
+      });
+
+      assert.deepEqual(hooks.sandbox?.onSandboxReady, [
+        {
+          command:
+            'git config --global user.name "Agent \\"Danger\\" Smith" && git config --global user.email "danger\\"smith@example.com"',
+        },
+      ]);
+    });
+
+    test("getSandboxHooks handles partial configuration (name only or email only)", () => {
+      const nameOnlyHooks = getSandboxHooks({ name: "Solo Name" });
+      assert.deepEqual(nameOnlyHooks.sandbox?.onSandboxReady, [
+        { command: 'git config --global user.name "Solo Name"' },
+      ]);
+
+      const emailOnlyHooks = getSandboxHooks({ email: "solo@example.com" });
+      assert.deepEqual(emailOnlyHooks.sandbox?.onSandboxReady, [
+        { command: 'git config --global user.email "solo@example.com"' },
+      ]);
+    });
+  });
+
+  describe("Seam 5: Orchestrator main.mts lifecycle hooks integration (Issue #26)", () => {
+    const mainMtsPath = resolve(repoRoot, "main.mts");
+
+    test("main.mts imports getSandboxHooks from ./docker-config.ts", () => {
+      const mainContent = readFileSync(mainMtsPath, "utf-8");
+
+      assert.match(
+        mainContent,
+        /import\s+{[^}]*getSandboxHooks[^}]*}\s+from\s+["']\.\/docker-config\.ts["']/,
+        "main.mts must import getSandboxHooks from ./docker-config.ts",
+      );
+    });
+
+    test("main.mts creates sandboxHooks and injects into plan, execute, and merge phases", () => {
+      const mainContent = readFileSync(mainMtsPath, "utf-8");
+
+      assert.match(
+        mainContent,
+        /sandboxHooks\s*=\s*getSandboxHooks\(/,
+        "main.mts must initialize sandboxHooks via getSandboxHooks()",
+      );
+      assert.match(
+        mainContent,
+        /sandcastle\.run\({[\s\S]*?hooks:\s*sandboxHooks[\s\S]*?name:\s*["']planner["']/,
+        "main.mts planner phase must supply hooks: sandboxHooks",
+      );
+      assert.match(
+        mainContent,
+        /sandcastle\.createSandbox\({[\s\S]*?hooks:\s*sandboxHooks/,
+        "main.mts execute phase must supply hooks: sandboxHooks to createSandbox",
+      );
+      assert.match(
+        mainContent,
+        /sandcastle\.run\({[\s\S]*?hooks:\s*sandboxHooks[\s\S]*?name:\s*["']merger["']/,
+        "main.mts merger phase must supply hooks: sandboxHooks",
       );
     });
   });

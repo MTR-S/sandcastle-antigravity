@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { cleanupTargetRepository } from "./operations.ts";
-import { getSandboxMounts } from "./docker-config.ts";
+import { getSandboxMounts, getSandboxHooks } from "./docker-config.ts";
 
 describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
   const packageRoot = process.cwd();
@@ -285,6 +285,10 @@ describe("Multi-Repository Verification Smoke Test (Issue #11)", () => {
             GIT_USER_EMAIL: "container@example.com",
           },
           mounts: [...getSandboxMounts()],
+        }),
+        hooks: getSandboxHooks({
+          GIT_USER_NAME: "Container Dev",
+          GIT_USER_EMAIL: "container@example.com",
         }),
       });
 

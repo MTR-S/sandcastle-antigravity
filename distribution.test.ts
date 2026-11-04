@@ -30,6 +30,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
 
   const prdPath = resolve(packageRoot, "docs/PRD.md");
   const adr0003Path = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
+  const adr0004Path = resolve(packageRoot, "docs/adr/0004-sequential-sandbox-git-identity.md");
   const contextPath = resolve(packageRoot, "CONTEXT.md");
 
   let cachedPrd: string | null = null;
@@ -48,6 +49,15 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       cachedAdr0003 = readFileSync(adr0003Path, "utf-8");
     }
     return cachedAdr0003;
+  };
+
+  let cachedAdr0004: string | null = null;
+  const getAdr0004 = (): string => {
+    if (cachedAdr0004 === null) {
+      assert.ok(existsSync(adr0004Path), "docs/adr/0004-sequential-sandbox-git-identity.md must exist");
+      cachedAdr0004 = readFileSync(adr0004Path, "utf-8");
+    }
+    return cachedAdr0004;
   };
 
   let cachedContext: string | null = null;
@@ -240,6 +250,32 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
       const context = getContext();
       assert.match(context, /CLI Binary Alias/i, "CONTEXT.md must define CLI Binary Alias");
       assert.match(context, /sc-agy/i, "CONTEXT.md must cite sc-agy");
+    });
+
+    test("docs/PRD.md documents Ticket #7 for Issue #26 .gitconfig.lock race condition resolution", () => {
+      const prd = getPrd();
+      assert.match(prd, /Ticket #7/i, "docs/PRD.md must document Ticket #7");
+      assert.match(prd, /gitconfig\.lock/i, "docs/PRD.md must cite .gitconfig.lock");
+      assert.match(prd, /Issue #26/i, "docs/PRD.md must reference Issue #26");
+    });
+
+    test("docs/adr/0004-sequential-sandbox-git-identity.md documents sequential Git identity architecture, options, and consequences", () => {
+      const adr = getAdr0004();
+      assert.match(adr, /Sequential Sandbox Git Identity/i, "ADR must define Sequential Sandbox Git Identity");
+      assert.match(adr, /gitconfig\.lock/i, "ADR must reference .gitconfig.lock");
+      assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+      assert.match(adr, /Consequences/i, "ADR must outline consequences");
+      assert.match(getReadme(), /0004-sequential-sandbox-git-identity\.md/, "README.md must link to ADR 0004");
+    });
+
+    test("CONTEXT.md defines Sequential Sandbox Git Identity Configuration in domain glossary", () => {
+      const context = getContext();
+      assert.match(
+        context,
+        /Sequential Sandbox Git Identity Configuration/i,
+        "CONTEXT.md must define Sequential Sandbox Git Identity Configuration",
+      );
+      assert.match(context, /onSandboxReady/i, "CONTEXT.md must cite onSandboxReady hook");
     });
   });
 });

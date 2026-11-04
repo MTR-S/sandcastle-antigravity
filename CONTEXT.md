@@ -40,6 +40,10 @@ _Avoid_: execução às cegas, configuração oculta
 Mecanismo de repasse do token GitHub (`GH_TOKEN`, `GITHUB_TOKEN`) e da conta associada (`GH_USER`) resolvidos no host (via ambiente ou `gh auth token` / `gh auth status`) para dentro do ambiente de sandbox Docker, garantindo que comandos da CLI `gh` executem sem exigir login interativo no container.
 _Avoid_: login manual no container, personal access token em código-fonte
 
+**Sequential Sandbox Git Identity Configuration**:
+Configuração sequencial e sincronizada da identidade Git (`user.name` e `user.email`) dentro do container sandbox através do hook de ciclo de vida `onSandboxReady` e variáveis de ambiente canônicas do Git (`GIT_AUTHOR_NAME`, `GIT_COMMITTER_NAME`, etc.), eliminando mutações concorrentes em `.gitconfig` durante o boot do container que causavam colisões em `.gitconfig.lock`.
+_Avoid_: mutação de git config no entrypoint, gravação concorrente de git config, colisão de lockfile
+
 ### CLI Interface & Distribution
 
 **CLI Binary Alias**:
