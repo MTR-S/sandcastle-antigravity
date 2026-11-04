@@ -99,3 +99,70 @@ export function getSandboxMounts(
 
   return Object.freeze(mounts);
 }
+
+export interface GitIdentityInput {
+  readonly name?: string;
+  readonly email?: string;
+}
+
+export interface SandboxHooksConfig {
+  readonly sandbox?: {
+    readonly onSandboxReady?: ReadonlyArray<{
+      readonly command: string;
+      readonly sudo?: boolean;
+      readonly timeoutMs?: number;
+    }>;
+  };
+}
+
+/**
+ * Builds deterministic sandbox hooks to configure Git identity sequentially inside
+ * the container sandbox via onSandboxReady, avoiding startup lockfile collisions (Issue #26).
+ *
+ * When both user.name and user.email are configured, they are combined with '&&' into
+ * a single compound command to guarantee strictly sequential execution under Sandcastle's
+ * unbounded concurrent hook runner.
+ */
+export function getSandboxHooks(
+  identityOrEnv?: GitIdentityInput | Record<string, string | undefined>,
+): SandboxHooksConfig {
+  let name: string | undefined;
+  let email: string | undefined;
+
+  if (identityOrEnv) {
+    if ("name" in identityOrEnv && typeof identityOrEnv.name === "string") {
+      name = identityOrEnv.name;
+    } else if ("GIT_USER_NAME" in identityOrEnv && typeof identityOrEnv.GIT_USER_NAME === "string") {
+      name = identityOrEnv.GIT_USER_NAME;
+    }
+
+    if ("email" in identityOrEnv && typeof identityOrEnv.email === "string") {
+      email = identityOrEnv.email;
+    } else if ("GIT_USER_EMAIL" in identityOrEnv && typeof identityOrEnv.GIT_USER_EMAIL === "string") {
+      email = identityOrEnv.GIT_USER_EMAIL;
+    }
+  }
+
+  const subcommands: string[] = [];
+  if (name) {
+    subcommands.push(`git config --global user.name "${name.replace(/"/g, '\\"')}"`);
+  }
+  if (email) {
+    subcommands.push(`git config --global user.email "${email.replace(/"/g, '\\"')}"`);
+  }
+
+  const commands: Array<{ readonly command: string }> = [];
+  if (subcommands.length > 0) {
+    commands.push(
+      Object.freeze({
+        command: subcommands.join(" && "),
+      }),
+    );
+  }
+
+  return Object.freeze({
+    sandbox: Object.freeze({
+      onSandboxReady: Object.freeze(commands),
+    }),
+  });
+}

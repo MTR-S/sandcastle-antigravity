@@ -82,4 +82,16 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Falta de token do GitHub causa término imediato e fail-fast com código 1 antes de criar sandboxes.
   - Suíte de testes unitários e de integração validam as variáveis de ambiente e o comportamento de validação com 100% de sucesso.
 
+### Ticket #7: Resolução de Condição de Corrida em .gitconfig.lock no Setup do Sandbox Docker (Issue #26)
+- **Escopo**:
+  - Eliminar mutações concorrentes não sincronizadas em `~/.gitconfig` entre a inicialização em background do container (`entrypoint.sh` como PID 1) e os comandos de configuração da sandbox disparados pelo orquestrador Sandcastle (`docker exec` executando `git config --global --add safe.directory "/home/agent/workspace"`).
+  - Garantir limpeza defensiva de lockfiles órfãos (`/home/agent/.gitconfig.lock`) no startup do container.
+  - Assegurar que a identidade dinâmica do Git (`GIT_USER_NAME` e `GIT_USER_EMAIL`) continue sendo respeitada nos commits e comandos dentro do worktree através das variáveis de ambiente padrão (`GIT_AUTHOR_NAME`, `GIT_COMMITTER_NAME`, etc.) e/ou sequenciada após a conclusão do setup via hook `onSandboxReady`.
+- **Critérios de Aceite**:
+  - A inicialização do sandbox conclui sem erro `could not lock config file /home/agent/.gitconfig: File exists` (código de saída 255).
+  - O script `entrypoint.sh` executa de forma estável sem término prematuro sob `set -e`.
+  - Commits Git gerados no worktree da sandbox retêm a identidade dinâmica configurada sem vazamento de dados do host.
+  - 100% dos testes unitários e de smoke continuam passando.
+
+
 

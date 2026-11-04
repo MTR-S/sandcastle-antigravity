@@ -38,7 +38,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { antigravity } from "./antigravity.ts";
 import { runAuthPreflight, formatOAuthPayloadForContainer, logAuthFailure, DEFAULT_LOG_PATH } from "./auth-preflight.ts";
-import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts } from "./docker-config.ts";
+import { getSandboxEnv as resolveSandboxEnv, getSandboxMounts, getSandboxHooks } from "./docker-config.ts";
 import { detectTargetConfig } from "./target-config.ts";
 import { buildPromptArgs, resolvePromptFile } from "./prompts.ts";
 import { resolvePreRunConfig, runPreRunConfigurationBanner } from "./banner.ts";
@@ -172,6 +172,7 @@ const sandboxEnv: Record<string, string> = {
   ...getSandboxEnv(),
   SANDCASTLE_OAUTH_PAYLOAD: oauthPayload,
 };
+const sandboxHooks = getSandboxHooks(activeConfig.gitIdentity);
 const sandboxImageName = process.env.SANDCASTLE_IMAGE ?? "sandcastle-agent";
 const defaultAgentModel = process.env.AGENT_MODEL ?? "gemini-3.8-flash-high";
 
@@ -264,6 +265,7 @@ try {
   const plan = await sandcastle.run({
     cwd: repoRoot,
     sandbox: createSandboxProvider(),
+    hooks: sandboxHooks,
     name: "planner",
     // One iteration is enough: the planner just needs to read and reason,
     // not write code. (Structured output requires maxIterations: 1.)
@@ -312,6 +314,7 @@ try {
         cwd: repoRoot,
         branch: issue.branch,
         sandbox: createSandboxProvider(),
+        hooks: sandboxHooks,
       });
 
       try {
@@ -420,6 +423,7 @@ try {
   await sandcastle.run({
     cwd: repoRoot,
     sandbox: createSandboxProvider(),
+    hooks: sandboxHooks,
     name: "merger",
     maxIterations: 15,
     agent: createAgent(mergerModel, {

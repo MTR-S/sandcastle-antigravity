@@ -10,7 +10,7 @@ import {
   formatOAuthPayloadForContainer,
 } from "./auth-preflight.ts";
 import { antigravity, parseAntigravityStreamLine } from "./antigravity.ts";
-import { getSandboxEnv, getSandboxMounts } from "./docker-config.ts";
+import { getSandboxEnv, getSandboxMounts, getSandboxHooks } from "./docker-config.ts";
 
 describe("Orchestrator End-to-End Containerized Smoke Test", () => {
   // Ensure host GEMINI_API_KEY is not forwarded or leaked into the smoke tests
@@ -54,6 +54,7 @@ describe("Orchestrator End-to-End Containerized Smoke Test", () => {
         env: testEnv,
         mounts: [...getSandboxMounts()],
       }),
+      hooks: getSandboxHooks(testEnv),
     });
 
     try {

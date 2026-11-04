@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# 0. Defensive cleanup of any stale git config lockfile upon container startup (Issue #26)
+rm -f "$HOME/.gitconfig.lock"
+
 # 1. Initialize D-Bus session bus if not already active
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/tmp/dbus-session.sock}"
 DBUS_SOCKET_PATH="${DBUS_SESSION_BUS_ADDRESS#unix:path=}"
@@ -58,14 +61,18 @@ if [ -n "$SANDCASTLE_OAUTH_PAYLOAD" ]; then
   unset SANDCASTLE_OAUTH_PAYLOAD
 fi
 
-# 6. Dynamic Git identity configuration from environment variables
+# 6. Dynamic Git identity environment variables and stale lockfile cleanup (Issue #26)
+# Note: uncoordinated git config mutations are removed here to eliminate startup race
+# conditions on ~/.gitconfig.lock with Sandcastle's docker exec setup commands.
+# Commits inside target repo worktrees rely on standard Git author/committer environment
+# variables, with sequential onSandboxReady lifecycle hooks configuring global user config.
+rm -f "$HOME/.gitconfig.lock"
+
 if [ -n "$GIT_USER_NAME" ]; then
-  git config --global user.name "$GIT_USER_NAME"
   export GIT_AUTHOR_NAME="$GIT_USER_NAME"
   export GIT_COMMITTER_NAME="$GIT_USER_NAME"
 fi
 if [ -n "$GIT_USER_EMAIL" ]; then
-  git config --global user.email "$GIT_USER_EMAIL"
   export GIT_AUTHOR_EMAIL="$GIT_USER_EMAIL"
   export GIT_COMMITTER_EMAIL="$GIT_USER_EMAIL"
 fi
