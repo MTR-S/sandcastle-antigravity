@@ -9,6 +9,9 @@ import {
   renderPhase2ExecutionSummary,
   getIntegratedCommits,
   formatIntegratedCommitsSummary,
+  getBranchHeadRevision,
+  formatPhase3MergeSummary,
+  renderPhase3MergeSummary,
   DEFAULT_INTEGRATED_EMPTY_MESSAGE,
   parseCommitLine,
   type GitCommitInfo,
@@ -967,6 +970,331 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
 
         const linesWithDot = formatIntegratedCommitsSummary("feat/sc-agy.", commits);
         assert.equal(linesWithDot[0], "Branches merged into feat/sc-agy.");
+      });
+    });
+  });
+
+  describe("Phase 3 Merge Summary Integration (Issue #23)", () => {
+    describe("getBranchHeadRevision", () => {
+      test("queries HEAD revision using git rev-parse against target repository", () => {
+        const executedCommands: { cmd: string; cwd: string }[] = [];
+        const mockGitRunner = (cmd: string, cwd: string) => {
+          executedCommands.push({ cmd, cwd });
+          return {
+            status: 0,
+            stdout: "572a89058749b38183d2de318c8a863a72ad883f\n",
+            stderr: "",
+          };
+        };
+
+        const headSha = getBranchHeadRevision("/mock/repo", "feat/sc-agy", {
+          gitRunner: mockGitRunner,
+        });
+
+        assert.equal(headSha, "572a89058749b38183d2de318c8a863a72ad883f");
+        assert.equal(executedCommands.length, 1);
+        assert.equal(executedCommands[0].cwd, "/mock/repo");
+        assert.equal(executedCommands[0].cmd, "git rev-parse feat/sc-agy");
+      });
+
+      test("defaults to HEAD when branch or ref argument is omitted or empty", () => {
+        const executedCommands: { cmd: string; cwd: string }[] = [];
+        const mockGitRunner = (cmd: string, cwd: string) => {
+          executedCommands.push({ cmd, cwd });
+          return {
+            status: 0,
+            stdout: "b1213c1f56f4113b4c441ba7670467bacfbb27b1\n",
+            stderr: "",
+          };
+        };
+
+        const headSha1 = getBranchHeadRevision("/mock/repo", undefined, {
+          gitRunner: mockGitRunner,
+        });
+        const headSha2 = getBranchHeadRevision("/mock/repo", "   ", {
+          gitRunner: mockGitRunner,
+        });
+
+        assert.equal(headSha1, "b1213c1f56f4113b4c441ba7670467bacfbb27b1");
+        assert.equal(headSha2, "b1213c1f56f4113b4c441ba7670467bacfbb27b1");
+        assert.equal(executedCommands[0].cmd, "git rev-parse HEAD");
+        assert.equal(executedCommands[1].cmd, "git rev-parse HEAD");
+      });
+
+      test("falls back to git rev-parse HEAD when branch-specific query fails", () => {
+        const executedCommands: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          executedCommands.push(cmd);
+          if (cmd === "git rev-parse custom-branch") {
+            return {
+              status: 128,
+              stdout: "",
+              stderr: "fatal: ambiguous argument 'custom-branch'",
+            };
+          }
+          if (cmd === "git rev-parse HEAD") {
+            return {
+              status: 0,
+              stdout: "8a845dcd980108e6bcb1be013069921cbb5eec88\n",
+              stderr: "",
+            };
+          }
+          return { status: 1, stdout: "", stderr: "" };
+        };
+
+        const headSha = getBranchHeadRevision("/mock/repo", "custom-branch", {
+          gitRunner: mockGitRunner,
+        });
+
+        assert.equal(headSha, "8a845dcd980108e6bcb1be013069921cbb5eec88");
+        assert.deepEqual(executedCommands, [
+          "git rev-parse custom-branch",
+          "git rev-parse HEAD",
+        ]);
+      });
+
+      test("returns empty string and logs diagnostic warning via errorLogger on git failure without throwing", () => {
+        const loggedErrors: string[] = [];
+        const mockGitRunner = () => ({
+          status: 128,
+          stdout: "",
+          stderr: "fatal: not a git repository",
+        });
+
+        const headSha = getBranchHeadRevision("/non/git/repo", "feat/sc-agy", {
+          gitRunner: mockGitRunner,
+          errorLogger: (msg) => loggedErrors.push(msg),
+        });
+
+        assert.equal(headSha, "");
+        assert.equal(loggedErrors.length, 1);
+        assert.match(loggedErrors[0], /Failed to resolve HEAD revision/i);
+      });
+
+      test("never throws when git runner throws an unexpected exception and returns safe empty string", () => {
+        const loggedErrors: string[] = [];
+        const mockGitRunner = () => {
+          throw new Error("Git process crashed unexpectedly");
+        };
+
+        const headSha = getBranchHeadRevision("/mock/repo", "main", {
+          gitRunner: mockGitRunner,
+          errorLogger: (msg) => loggedErrors.push(msg),
+        });
+
+        assert.equal(headSha, "");
+        assert.equal(loggedErrors.length, 1);
+        assert.match(loggedErrors[0], /Git process crashed unexpectedly/);
+      });
+    });
+
+    describe("formatPhase3MergeSummary", () => {
+      test("formats integrated Base Branch commits under Branches merged into <baseBranch>. with bullet markers and short SHAs", () => {
+        const mockGitRunner = (cmd: string) => {
+          if (cmd.includes("git log")) {
+            return {
+              status: 0,
+              stdout: [
+                "08f0e65ce7d4df3da458063f18e3de2b817ef0cc\x1f08f0e65\x1fRegister sc-agy binary alias",
+                "7f8e9d0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e\x1f7f8e9d0\x1fMerge branch 'sandcastle/issue-18' into feat/sc-agy",
+              ].join("\n"),
+              stderr: "",
+            };
+          }
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = formatPhase3MergeSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          "pre-merge-rev",
+          "post-merge-rev",
+          { gitRunner: mockGitRunner },
+        );
+
+        assert.equal(lines.length, 3);
+        assert.equal(lines[0], "Branches merged into feat/sc-agy.");
+        assert.equal(lines[1], "  • 08f0e65 Register sc-agy binary alias");
+        assert.equal(
+          lines[2],
+          "  • 7f8e9d0 Merge branch 'sandcastle/issue-18' into feat/sc-agy",
+        );
+      });
+
+      test("returns clean confirmation message when preMergeHead and postMergeHead are equal (branch already up to date)", () => {
+        const runnerCalls: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          runnerCalls.push(cmd);
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = formatPhase3MergeSummary(
+          "/mock/repo",
+          "main",
+          "572a89058749b38183d2de318c8a863a72ad883f",
+          "572a89058749b38183d2de318c8a863a72ad883f",
+          { gitRunner: mockGitRunner },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], "Branches merged into main.");
+        assert.equal(
+          lines[1],
+          `  ${DEFAULT_INTEGRATED_EMPTY_MESSAGE}`,
+        );
+        assert.match(lines[1], /already up to date/i);
+        assert.equal(runnerCalls.length, 0, "Should not invoke git runner when pre and post revisions are identical");
+      });
+
+      test("automatically resolves postMergeHead via getBranchHeadRevision when postMergeHead is omitted", () => {
+        const executedCommands: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          executedCommands.push(cmd);
+          if (cmd.startsWith("git rev-parse")) {
+            return {
+              status: 0,
+              stdout: "post-merge-resolved-sha\n",
+              stderr: "",
+            };
+          }
+          if (cmd.includes("git log")) {
+            return {
+              status: 0,
+              stdout:
+                "99887766554433221100aabbccddeeff00112233\x1f9988776\x1ffeat: auto resolved post HEAD\n",
+              stderr: "",
+            };
+          }
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = formatPhase3MergeSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          "pre-merge-sha",
+          undefined,
+          { gitRunner: mockGitRunner },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], "Branches merged into feat/sc-agy.");
+        assert.equal(lines[1], "  • 9988776 feat: auto resolved post HEAD");
+        assert.ok(
+          executedCommands.some((c) => c.includes("git rev-parse")),
+          "Should query rev-parse to resolve post-merge HEAD",
+        );
+      });
+
+      test("supports custom indent and empty message options in Phase 3 summary", () => {
+        const customMsg = "(all branches clean; no new commits)";
+        const lines = formatPhase3MergeSummary(
+          "/mock/repo",
+          "main",
+          "head-sha",
+          "head-sha",
+          {
+            headerIndent: "  ",
+            commitIndent: "    ",
+            emptyPlaceholder: customMsg,
+          },
+        );
+
+        assert.equal(lines.length, 2);
+        assert.equal(lines[0], "  Branches merged into main.");
+        assert.equal(lines[1], `    ${customMsg}`);
+      });
+    });
+
+    describe("renderPhase3MergeSummary", () => {
+      test("renders Phase 3 summary lines using provided custom logger", () => {
+        const logged: string[] = [];
+        const mockGitRunner = (cmd: string) => {
+          if (cmd.includes("git log")) {
+            return {
+              status: 0,
+              stdout:
+                "11223344556677889900aabbccddeeff00112233\x1f1122334\x1fRender test commit\n",
+              stderr: "",
+            };
+          }
+          return { status: 0, stdout: "", stderr: "" };
+        };
+
+        const lines = renderPhase3MergeSummary(
+          "/mock/repo",
+          "feat/sc-agy",
+          "pre-rev",
+          "post-rev",
+          {
+            gitRunner: mockGitRunner,
+            logger: (line) => logged.push(line),
+          },
+        );
+
+        assert.deepEqual(logged, lines);
+        assert.equal(logged.length, 2);
+        assert.equal(logged[0], "Branches merged into feat/sc-agy.");
+        assert.equal(logged[1], "  • 1122334 Render test commit");
+      });
+
+      test("defaults to console.log when logger option is omitted", () => {
+        const originalLog = console.log;
+        const logged: string[] = [];
+        console.log = (msg: string) => {
+          logged.push(msg);
+        };
+        try {
+          const mockGitRunner = () => ({
+            status: 0,
+            stdout:
+              "11223344556677889900aabbccddeeff00112233\x1f1122334\x1fRender test commit\n",
+            stderr: "",
+          });
+
+          const lines = renderPhase3MergeSummary(
+            "/mock/repo",
+            "feat/sc-agy",
+            "pre-rev",
+            "post-rev",
+            { gitRunner: mockGitRunner },
+          );
+
+          assert.deepEqual(logged, lines);
+          assert.equal(logged.length, 2);
+        } finally {
+          console.log = originalLog;
+        }
+      });
+    });
+
+    describe("Orchestrator main.mts Phase 3 summary integration", () => {
+      const mainMtsPath = resolve(process.cwd(), "main.mts");
+
+      test("main.mts imports Phase 3 commit inspection / formatting functions from operations.ts", () => {
+        const content = readFileSync(mainMtsPath, "utf-8");
+        assert.match(
+          content,
+          /import\s+{[^}]*(?:formatPhase3MergeSummary|renderPhase3MergeSummary|formatIntegratedCommitsSummary|getBranchHeadRevision)[^}]*}\s+from\s+["']\.\/operations\.ts["']/,
+          "main.mts must import Phase 3 inspection / formatting functions from operations.ts",
+        );
+      });
+
+      test("main.mts captures pre-merge Base Branch HEAD before invoking merger agent run", () => {
+        const content = readFileSync(mainMtsPath, "utf-8");
+        assert.match(
+          content,
+          /const\s+\w*preMergeHead\w*\s*=\s*getBranchHeadRevision\(/,
+          "main.mts must capture pre-merge Base Branch HEAD prior to merger run",
+        );
+      });
+
+      test("main.mts renders integrated commits summary upon merger completion", () => {
+        const content = readFileSync(mainMtsPath, "utf-8");
+        assert.match(
+          content,
+          /(?:formatPhase3MergeSummary|renderPhase3MergeSummary|formatIntegratedCommitsSummary)\(/,
+          "main.mts must invoke Phase 3 summary formatting or rendering upon merger completion",
+        );
       });
     });
   });

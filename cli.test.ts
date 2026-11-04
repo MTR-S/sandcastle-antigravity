@@ -754,5 +754,14 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(typeof cliModule.getBranchCommits, "function");
       assert.equal(typeof cliModule.formatBranchCommitsSummary, "function");
     });
+
+    test("cli.ts re-exports Phase 3 Base Branch commit inspection and summary seams for CLI consumers (Issue #22, #23)", async () => {
+      const cliModule = await import("./cli.ts");
+      assert.equal(typeof cliModule.getIntegratedCommits, "function");
+      assert.equal(typeof cliModule.formatIntegratedCommitsSummary, "function");
+      assert.equal(typeof cliModule.getBranchHeadRevision, "function");
+      assert.equal(typeof cliModule.formatPhase3MergeSummary, "function");
+      assert.equal(typeof cliModule.renderPhase3MergeSummary, "function");
+    });
   });
 });

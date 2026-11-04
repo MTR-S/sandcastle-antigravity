@@ -46,6 +46,8 @@ import { parseCliArgs, validateCliArgs, dispatchCli } from "./cli.ts";
 import {
   cleanupTargetRepository,
   formatPhase2ExecutionSummary,
+  getBranchHeadRevision,
+  formatPhase3MergeSummary,
 } from "./operations.ts";
 
 // ---------------------------------------------------------------------------
@@ -428,6 +430,8 @@ try {
   // The {{BRANCHES}} and {{ISSUES}} prompt arguments are lists that the agent
   // uses to know which branches to merge and which issues to close.
   // -------------------------------------------------------------------------
+  const preMergeHead = getBranchHeadRevision(repoRoot, activeBaseBranch);
+
   await sandcastle.run({
     cwd: repoRoot,
     sandbox: createSandboxProvider(),
@@ -447,7 +451,17 @@ try {
     }),
   });
 
-  console.log("\nBranches merged.");
+  const postMergeHead = getBranchHeadRevision(repoRoot, activeBaseBranch);
+  const phase3SummaryLines = formatPhase3MergeSummary(
+    repoRoot,
+    activeBaseBranch,
+    preMergeHead,
+    postMergeHead,
+  );
+  console.log("");
+  for (const line of phase3SummaryLines) {
+    console.log(line);
+  }
   }
 
   console.log("\nAll done.");

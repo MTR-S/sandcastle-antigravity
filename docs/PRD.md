@@ -97,16 +97,18 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
 - **Escopo**:
   - Registrar o conceito canônico de domínio `Iteration Commits` no glossário (`CONTEXT.md`).
   - Implementar costura de inspeção de commits de branches candidatas em `operations.ts` (`GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary`, `renderPhase2ExecutionSummary`).
-  - Implementar costura de inspeção de commits pós-merge integrados na Base Branch em `operations.ts` (`getIntegratedCommits`, `formatIntegratedCommitsSummary`).
+  - Implementar costura de inspeção de commits pós-merge integrados na Base Branch em `operations.ts` (`getIntegratedCommits`, `formatIntegratedCommitsSummary`, `getBranchHeadRevision`, `formatPhase3MergeSummary`, `renderPhase3MergeSummary`).
   - Integrar a exibição de Iteration Commits no loop do orquestrador (`main.mts`) ao término da Fase 2 (Execute + Review) sob o sumário `Execution complete. N branch(es) with commits:` (Issue #21).
+  - Integrar a captura de HEAD da Base Branch (`getBranchHeadRevision`) e a exibição de commits integrados no loop do orquestrador (`main.mts`) ao término da Fase 3 (Merge) sob o sumário `Branches merged into <baseBranch>.` (Issue #23).
   - Garantir resolução cronológica de commits (`baseBranch..branch` e `preMergeHead..postMergeHead`) com hashes de 7 caracteres, mensagens de assunto e inclusão de merge commits (cobrindo commits de Implementer e Reviewer).
   - Prover formatação consistente com recuo visual e marcadores bullet (` • `) sob branches candidatas e sob cabeçalho `Branches merged into <baseBranch>.`.
   - Tratar cenários em que nenhum commit novo foi integrado (Base Branch já atualizada) informando claramente o estado.
   - Fornecer resiliência com fallback gracioso para short SHAs e marcador de mensagem indisponível sem disparar exceções, assegurando que o pipeline continue ininterrupto.
 - **Critérios de Aceite**:
   - Glossário em `CONTEXT.md` define `Iteration Commits` sob Orquestração e Isolamento.
-  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary`, `renderPhase2ExecutionSummary`, `getIntegratedCommits` e `formatIntegratedCommitsSummary`.
+  - Módulo de operações expõe `GitCommitInfo`, `getBranchCommits`, `formatBranchCommitsSummary`, `formatPhase2ExecutionSummary`, `renderPhase2ExecutionSummary`, `getIntegratedCommits`, `formatIntegratedCommitsSummary`, `getBranchHeadRevision`, `formatPhase3MergeSummary` e `renderPhase3MergeSummary`.
   - Orquestrador em `main.mts` substitui a listagem simples de branches por blocos formatados de branches e commits na Fase 2.
+  - Orquestrador em `main.mts` captura a revisão HEAD pré-merge da Base Branch, executa o agente Merger e exibe o sumário pós-merge sob `Branches merged into <baseBranch>.` na Fase 3.
   - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos de Implementer + Reviewer, commits integrados pós-merge, commits de merge e cenários de fallback.
   - 100% dos testes passam de forma determinística.
 

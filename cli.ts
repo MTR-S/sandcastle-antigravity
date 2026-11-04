@@ -16,6 +16,9 @@ import {
   renderPhase2ExecutionSummary,
   getIntegratedCommits,
   formatIntegratedCommitsSummary,
+  getBranchHeadRevision,
+  formatPhase3MergeSummary,
+  renderPhase3MergeSummary,
   DEFAULT_COMMIT_FALLBACK_MESSAGE,
   DEFAULT_INTEGRATED_EMPTY_MESSAGE,
   type GitCommitInfo,
@@ -25,6 +28,9 @@ import {
   type RenderPhase2ExecutionSummaryOptions,
   type GetIntegratedCommitsOptions,
   type FormatIntegratedCommitsOptions,
+  type GetBranchHeadRevisionOptions,
+  type FormatPhase3MergeSummaryOptions,
+  type RenderPhase3MergeSummaryOptions,
   type OperationsGitRunner,
 } from "./operations.ts";
 
@@ -45,6 +51,9 @@ export {
   renderPhase2ExecutionSummary,
   getIntegratedCommits,
   formatIntegratedCommitsSummary,
+  getBranchHeadRevision,
+  formatPhase3MergeSummary,
+  renderPhase3MergeSummary,
   DEFAULT_COMMIT_FALLBACK_MESSAGE,
   DEFAULT_INTEGRATED_EMPTY_MESSAGE,
   type GitCommitInfo,
@@ -54,6 +63,9 @@ export {
   type RenderPhase2ExecutionSummaryOptions,
   type GetIntegratedCommitsOptions,
   type FormatIntegratedCommitsOptions,
+  type GetBranchHeadRevisionOptions,
+  type FormatPhase3MergeSummaryOptions,
+  type RenderPhase3MergeSummaryOptions,
   type OperationsGitRunner,
 };
 

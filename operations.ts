@@ -664,6 +664,23 @@ export interface RenderPhase2ExecutionSummaryOptions
   readonly logger?: (line: string) => void;
 }
 
+export interface GetBranchHeadRevisionOptions extends GitCommitQueryOptions {}
+
+/**
+ * Options for configuring Phase 3 integrated Base Branch commit querying and summary formatting.
+ */
+export interface FormatPhase3MergeSummaryOptions
+  extends GetIntegratedCommitsOptions,
+    FormatIntegratedCommitsOptions {}
+
+/**
+ * Options for rendering Phase 3 integrated Base Branch summary to terminal or custom logger.
+ */
+export interface RenderPhase3MergeSummaryOptions
+  extends FormatPhase3MergeSummaryOptions {
+  readonly logger?: (line: string) => void;
+}
+
 export const DEFAULT_COMMIT_FALLBACK_MESSAGE = "(commit message unavailable)";
 export const DEFAULT_INTEGRATED_EMPTY_MESSAGE =
   "(no new commits integrated; base branch already up to date)";
@@ -992,6 +1009,98 @@ export function renderPhase2ExecutionSummary(
 ): readonly string[] {
   const logger = options?.logger ?? console.log;
   const lines = formatPhase2ExecutionSummary(repoRoot, baseBranch, branches, options);
+  for (const line of lines) {
+    logger(line);
+  }
+  return lines;
+}
+
+/**
+ * Queries the HEAD revision (full commit hash) of the specified branch or ref in the target repository.
+ * Defaults to "HEAD" when ref is omitted or empty.
+ * Falls back to "git rev-parse HEAD" if a specific branch name was passed and failed.
+ * Tolerant to Git errors and unexpected exceptions, returning an empty string without throwing.
+ */
+export function getBranchHeadRevision(
+  repoRoot: string,
+  branchOrRef: string = "HEAD",
+  options: GetBranchHeadRevisionOptions = {},
+): string {
+  const runner = options.gitRunner ?? runExecCommand;
+  const targetRepo = resolve(repoRoot);
+  const ref = branchOrRef?.trim() || "HEAD";
+
+  try {
+    const outcome = runner(`git rev-parse ${ref}`, targetRepo);
+    if (outcome.status === 0 && outcome.stdout.trim().length > 0) {
+      return outcome.stdout.trim().split(/\r?\n/)[0].trim();
+    }
+
+    if (ref !== "HEAD") {
+      try {
+        const headOutcome = runner("git rev-parse HEAD", targetRepo);
+        if (headOutcome.status === 0 && headOutcome.stdout.trim().length > 0) {
+          return headOutcome.stdout.trim().split(/\r?\n/)[0].trim();
+        }
+      } catch {
+        // Ignore fallback failure
+      }
+    }
+
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Failed to resolve HEAD revision for ${ref}: ${outcome.stderr}`,
+    );
+    return "";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    options.errorLogger?.(
+      `[COMMIT-INSPECTION] Failed to resolve HEAD revision for ${ref}: ${msg}`,
+    );
+    return "";
+  }
+}
+
+/**
+ * Formats Phase 3 integrated Base Branch commits summary lines.
+ * Resolves postMergeHead automatically via getBranchHeadRevision if omitted.
+ * Calls getIntegratedCommits and formatIntegratedCommitsSummary.
+ * Resilient against Git query errors or missing commits, continuing without throwing.
+ */
+export function formatPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
+  postMergeHead?: string,
+  options?: FormatPhase3MergeSummaryOptions,
+): readonly string[] {
+  const resolvedPostHead =
+    postMergeHead !== undefined && postMergeHead !== null
+      ? postMergeHead
+      : getBranchHeadRevision(repoRoot, baseBranch, options);
+
+  const commits = getIntegratedCommits(repoRoot, preMergeHead, resolvedPostHead, options);
+  return formatIntegratedCommitsSummary(baseBranch, commits, options);
+}
+
+/**
+ * Displays Phase 3 integrated Base Branch commits summary in terminal.
+ * Delegates to formatPhase3MergeSummary and outputs each line via options.logger (defaults to console.log).
+ */
+export function renderPhase3MergeSummary(
+  repoRoot: string,
+  baseBranch: string,
+  preMergeHead: string,
+  postMergeHead?: string,
+  options?: RenderPhase3MergeSummaryOptions,
+): readonly string[] {
+  const logger = options?.logger ?? console.log;
+  const lines = formatPhase3MergeSummary(
+    repoRoot,
+    baseBranch,
+    preMergeHead,
+    postMergeHead,
+    options,
+  );
   for (const line of lines) {
     logger(line);
   }
