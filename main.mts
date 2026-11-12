@@ -60,6 +60,12 @@ if (!validation.valid) {
   process.exit(1);
 }
 
+if (validation.warnings && validation.warnings.length > 0) {
+  for (const warn of validation.warnings) {
+    console.warn(`[CLI WARN] ${warn}`);
+  }
+}
+
 if (parsedCli.command !== "run") {
   const exitCode = await dispatchCli(process.argv);
   process.exit(exitCode);
@@ -87,7 +93,9 @@ for (const envPath of [
 let targetConfig = detectTargetConfig({ targetRepoPath: repoRoot });
 const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targetConfig.baseBranch;
 
-const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env);
+const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env, {
+  mode: parsedCli.mode,
+});
 const bannerResult = await runPreRunConfigurationBanner({
   config: initialPreRunConfig,
   argv: process.argv,
