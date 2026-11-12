@@ -490,7 +490,7 @@ try {
   }
 
   // Iteration completion notification (Issue #32)
-  const isIterationLimitReached = iteration === MAX_ITERATIONS;
+  const isIterationLimitReached = iteration >= MAX_ITERATIONS;
   sendIterationNotification({
     iteration,
     totalIterations: MAX_ITERATIONS,

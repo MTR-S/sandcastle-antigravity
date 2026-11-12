@@ -794,6 +794,19 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(typeof cliModule.formatIterationLimitNotificationMessage, "function");
       assert.equal(typeof cliModule.sendLoopTerminalNotification, "function");
       assert.equal(typeof cliModule.sendPipelineIterationNotification, "function");
+      assert.equal(
+        cliModule.DEFAULT_ZERO_UNBLOCKED_NOTIFICATION_MESSAGE,
+        "Nenhuma issue pendente para execução (todas as tarefas concluídas).",
+      );
+      assert.equal(
+        cliModule.DEFAULT_NO_COMMITS_NOTIFICATION_MESSAGE,
+        "Nenhum commit produzido pelos agentes. Execução encerrada.",
+      );
+      assert.equal(
+        cliModule.DEFAULT_ITERATION_LIMIT_NOTIFICATION_SUFFIX,
+        "Limite máximo de iterações atingido.",
+      );
+      assert.equal(cliModule.DEFAULT_ORCHESTRATION_COMPLETED_TITLE, "Orquestração concluída");
       assert.equal(typeof cliModule.buildWindowsNotificationScript, "function");
       assert.equal(typeof cliModule.buildWindowsNotificationCommand, "function");
       assert.equal(typeof cliModule.escapePowerShellSingleQuotedString, "function");

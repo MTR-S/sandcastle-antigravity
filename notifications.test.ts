@@ -5,6 +5,10 @@ import { resolve } from "node:path";
 import {
   TERMINAL_BELL_CHAR,
   DEFAULT_NOTIFICATION_TITLE_PREFIX,
+  DEFAULT_ZERO_UNBLOCKED_NOTIFICATION_MESSAGE,
+  DEFAULT_NO_COMMITS_NOTIFICATION_MESSAGE,
+  DEFAULT_ITERATION_LIMIT_NOTIFICATION_SUFFIX,
+  DEFAULT_ORCHESTRATION_COMPLETED_TITLE,
   escapePowerShellSingleQuotedString,
   formatIterationNotificationTitle,
   formatIterationNotificationMessage,
@@ -24,6 +28,7 @@ import {
   type FormatIterationNotificationTitleOptions,
   type FormatIterationNotificationMessageOptions,
   type TerminalNotificationOptions,
+  type PipelineIterationNotificationOptions,
   type WindowsNotificationCommand,
   type NotificationStdio,
   type NotificationRunner,
@@ -768,9 +773,95 @@ describe("Orchestrator Loop Notification Integration in Automatic Mode (Issue #3
       const zero = formatIterationLimitNotificationMessage(0);
       assert.equal(zero, "Nenhuma branch integrada (ciclo finalizado). Limite máximo de iterações atingido.");
     });
+
+    test("dispatches regular iteration notification via sendPipelineIterationNotification before reaching limit", () => {
+      let loggedMessage = "";
+      let bellSent = false;
+
+      const result = sendPipelineIterationNotification(
+        {
+          iteration: 3,
+          totalIterations: 10,
+          integratedBranchesCount: 2,
+        },
+        {
+          platform: "linux",
+          logger: (msg) => {
+            loggedMessage = msg;
+          },
+          terminalBellWriter: () => {
+            bellSent = true;
+          },
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.title, "Iteração 3/10 concluída");
+      assert.equal(result.message, "2 branches integradas à Base Branch com sucesso.");
+      assert.equal(bellSent, true);
+      assert.ok(loggedMessage.includes("Iteração 3/10 concluída"));
+      assert.ok(!result.message.includes(DEFAULT_ITERATION_LIMIT_NOTIFICATION_SUFFIX));
+    });
+
+    test("exports canonical notification message constants matching formatting helpers", () => {
+      assert.equal(
+        DEFAULT_ZERO_UNBLOCKED_NOTIFICATION_MESSAGE,
+        formatZeroUnblockedNotificationMessage(),
+      );
+      assert.equal(
+        DEFAULT_NO_COMMITS_NOTIFICATION_MESSAGE,
+        formatNoCommitsNotificationMessage(),
+      );
+      assert.equal(DEFAULT_ORCHESTRATION_COMPLETED_TITLE, "Orquestração concluída");
+      assert.equal(DEFAULT_ITERATION_LIMIT_NOTIFICATION_SUFFIX, "Limite máximo de iterações atingido.");
+    });
   });
 
   describe("Seam 2: Notification Dispatching at Loop Terminal States", () => {
+    test("dispatches final notification when sendLoopTerminalNotification is called with iteration_limit_reached", () => {
+      const mockRunner: NotificationRunner = () => ({ status: 0 });
+
+      const resultWithCount = sendLoopTerminalNotification(
+        {
+          iteration: 10,
+          totalIterations: 10,
+          reason: "iteration_limit_reached",
+          integratedBranchesCount: 5,
+        },
+        {
+          platform: "win32",
+          runner: mockRunner,
+          logger: () => {},
+          terminalBellWriter: () => {},
+        },
+      );
+
+      assert.equal(resultWithCount.success, true);
+      assert.equal(resultWithCount.title, "Iteração 10/10 concluída (limite atingido)");
+      assert.equal(
+        resultWithCount.message,
+        "5 branches integradas à Base Branch com sucesso. Limite máximo de iterações atingido.",
+      );
+
+      const resultWithoutCount = sendLoopTerminalNotification(
+        {
+          iteration: 10,
+          totalIterations: 10,
+          reason: "iteration_limit_reached",
+        },
+        {
+          platform: "linux",
+          logger: () => {},
+          terminalBellWriter: () => {},
+        },
+      );
+
+      assert.equal(resultWithoutCount.success, true);
+      assert.equal(
+        resultWithoutCount.message,
+        "Nenhuma branch integrada (ciclo finalizado). Limite máximo de iterações atingido.",
+      );
+    });
     test("dispatches final completion notification when planner finds zero unblocked issues", () => {
       let loggedMessage = "";
       let bellEmitted = false;
