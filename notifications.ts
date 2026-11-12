@@ -19,31 +19,9 @@ export const TERMINAL_BELL_CHAR = "\x07";
 export const DEFAULT_NOTIFICATION_TITLE_PREFIX = "Sandcastle Antigravity";
 
 /**
- * Options for dispatching an iteration notification.
+ * Supported stdio configurations for notification command execution.
  */
-export interface IterationNotificationOptions {
-  /** The current 1-based pipeline iteration index (e.g. 1). */
-  readonly iteration: number;
-  /** Total maximum pipeline iterations configured (e.g. 10). */
-  readonly totalIterations: number;
-  /** Number of branches integrated into Base Branch in this iteration. */
-  readonly integratedBranchesCount: number;
-  /** Optional custom title override for the notification. */
-  readonly title?: string;
-  /** Optional custom body message override for the notification. */
-  readonly message?: string;
-
-  /** Platform override for testing or cross-platform simulation. */
-  readonly platform?: string;
-  /** Runner override for executing external notification commands. */
-  readonly runner?: NotificationRunner;
-  /** Logger override for informational summary output. */
-  readonly logger?: (message: string) => void;
-  /** Logger override for non-fatal warning messages. */
-  readonly warnLogger?: (message: string) => void;
-  /** Terminal writer override for emitting the terminal bell character. */
-  readonly terminalBellWriter?: (bell: string) => void;
-}
+export type NotificationStdio = "ignore" | "inherit" | "pipe";
 
 /**
  * Options passed to the notification runner when spawning detached processes.
@@ -51,7 +29,7 @@ export interface IterationNotificationOptions {
 export interface NotificationRunnerOptions {
   readonly detached?: boolean;
   readonly windowsHide?: boolean;
-  readonly stdio?: "ignore" | "inherit" | "pipe" | unknown;
+  readonly stdio?: NotificationStdio;
 }
 
 /**
@@ -89,6 +67,44 @@ export interface IterationNotificationDependencies {
 }
 
 /**
+ * Options for formatting the notification title.
+ */
+export interface FormatIterationNotificationTitleOptions {
+  /** The current 1-based pipeline iteration index (e.g. 1). */
+  readonly iteration: number;
+  /** Total maximum pipeline iterations configured (e.g. 10). */
+  readonly totalIterations: number;
+  /** Optional custom title override for the notification. */
+  readonly title?: string;
+}
+
+/**
+ * Options for formatting the notification message.
+ */
+export interface FormatIterationNotificationMessageOptions {
+  /** Number of branches integrated into Base Branch in this iteration. */
+  readonly integratedBranchesCount: number;
+  /** Optional custom body message override for the notification. */
+  readonly message?: string;
+}
+
+/**
+ * Options for dispatching an iteration notification.
+ */
+export interface IterationNotificationOptions
+  extends IterationNotificationDependencies,
+    FormatIterationNotificationTitleOptions,
+    FormatIterationNotificationMessageOptions {}
+
+/**
+ * Windows notification command and argument specification.
+ */
+export interface WindowsNotificationCommand {
+  readonly command: string;
+  readonly args: string[];
+}
+
+/**
  * Result returned by sendIterationNotification describing the outcome.
  */
 export interface NotificationResult {
@@ -119,6 +135,20 @@ export interface NotificationResult {
 }
 
 /**
+ * Helper to safely extract error message from unknown thrown value.
+ */
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Helper to safely normalize an unknown caught value to an Error instance.
+ */
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
  * Escapes characters in a string for safe embedding into PowerShell single-quoted literals.
  * In PowerShell single-quoted strings, only single quotes need escaping (doubled as '').
  */
@@ -129,11 +159,9 @@ export function escapePowerShellSingleQuotedString(value: string): string {
 /**
  * Resolves the notification title, defaulting to "Iteração X/Y concluída".
  */
-export function formatIterationNotificationTitle(options: {
-  iteration: number;
-  totalIterations: number;
-  title?: string;
-}): string {
+export function formatIterationNotificationTitle(
+  options: FormatIterationNotificationTitleOptions,
+): string {
   if (options.title) {
     return options.title;
   }
@@ -143,10 +171,9 @@ export function formatIterationNotificationTitle(options: {
 /**
  * Resolves the notification body message based on the count of integrated branches.
  */
-export function formatIterationNotificationMessage(options: {
-  integratedBranchesCount: number;
-  message?: string;
-}): string {
+export function formatIterationNotificationMessage(
+  options: FormatIterationNotificationMessageOptions,
+): string {
   if (options.message) {
     return options.message;
   }
@@ -200,7 +227,7 @@ export function buildWindowsNotificationScript(title: string, message: string): 
 export function buildWindowsNotificationCommand(
   title: string,
   message: string,
-): { command: string; args: string[] } {
+): WindowsNotificationCommand {
   const script = buildWindowsNotificationScript(title, message);
   return {
     command: "powershell.exe",
@@ -216,6 +243,49 @@ export function buildWindowsNotificationCommand(
 }
 
 /**
+ * Internal helper to dispatch the native Windows notification via PowerShell.
+ */
+function dispatchWindowsNotification(
+  title: string,
+  message: string,
+  runner: NotificationRunner,
+): {
+  success: boolean;
+  command: string;
+  args: readonly string[];
+  warning?: string;
+} {
+  const cmdInfo = buildWindowsNotificationCommand(title, message);
+  try {
+    const runResult = runner(cmdInfo.command, cmdInfo.args, {
+      detached: true,
+      windowsHide: true,
+      stdio: "ignore",
+    });
+
+    if (runResult?.error) {
+      throw runResult.error;
+    }
+    if (runResult?.status !== undefined && runResult.status !== null && runResult.status !== 0) {
+      throw new Error(`PowerShell process exited with non-zero code ${runResult.status}`);
+    }
+
+    return {
+      success: true,
+      command: cmdInfo.command,
+      args: cmdInfo.args,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      command: cmdInfo.command,
+      args: cmdInfo.args,
+      warning: `[notifications] Warning: Failed to dispatch native Windows notification: ${toErrorMessage(err)}`,
+    };
+  }
+}
+
+/**
  * Default production command runner using detached child_process.spawn.
  */
 export const defaultNotificationRunner: NotificationRunner = (command, args, options) => {
@@ -223,13 +293,12 @@ export const defaultNotificationRunner: NotificationRunner = (command, args, opt
     const child = spawn(command, [...args], {
       detached: options?.detached ?? true,
       windowsHide: options?.windowsHide ?? true,
-      stdio: (options?.stdio as "ignore" | "inherit" | "pipe") ?? "ignore",
+      stdio: options?.stdio ?? "ignore",
     });
     child.unref();
     return { pid: child.pid, status: 0 };
   } catch (err: unknown) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    return { status: 1, error };
+    return { status: 1, error: toError(err) };
   }
 };
 
@@ -275,9 +344,7 @@ export function sendIterationNotification(
     terminalBellWriter(TERMINAL_BELL_CHAR);
     bellEmitted = true;
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    const bellWarn = `[notifications] Warning: Failed to emit terminal bell: ${errorMsg}`;
-    warnLogger(bellWarn);
+    warnLogger(`[notifications] Warning: Failed to emit terminal bell: ${toErrorMessage(err)}`);
   }
 
   // 2. Output eye-catching summary line to console logger
@@ -286,43 +353,23 @@ export function sendIterationNotification(
     logger(summaryLine);
     logEmitted = true;
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    const logWarn = `[notifications] Warning: Failed to write notification summary to log: ${errorMsg}`;
-    warnLogger(logWarn);
+    warnLogger(`[notifications] Warning: Failed to write notification summary to log: ${toErrorMessage(err)}`);
   }
 
   // 3. Dispatch native Windows notification if platform is win32
   if (platform === "win32") {
-    try {
-      const cmdInfo = buildWindowsNotificationCommand(title, message);
-      dispatchedCommand = cmdInfo.command;
-      dispatchedArgs = cmdInfo.args;
-
-      const runResult = runner(cmdInfo.command, cmdInfo.args, {
-        detached: true,
-        windowsHide: true,
-        stdio: "ignore",
-      });
-
-      if (runResult && runResult.error) {
-        throw runResult.error;
-      }
-      if (
-        runResult &&
-        runResult.status !== undefined &&
-        runResult.status !== null &&
-        runResult.status !== 0
-      ) {
-        throw new Error(`PowerShell process exited with non-zero code ${runResult.status}`);
-      }
-
+    const dispatch = dispatchWindowsNotification(title, message, runner);
+    dispatchedCommand = dispatch.command;
+    dispatchedArgs = dispatch.args;
+    if (dispatch.success) {
       windowsDispatched = true;
       soundPlayed = true;
       balloonSent = true;
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      failureWarning = `[notifications] Warning: Failed to dispatch native Windows notification: ${errorMsg}`;
-      warnLogger(failureWarning);
+    } else {
+      failureWarning = dispatch.warning;
+      if (failureWarning) {
+        warnLogger(failureWarning);
+      }
     }
   }
 

@@ -14,6 +14,10 @@ import {
   defaultTerminalBellWriter,
   type IterationNotificationOptions,
   type IterationNotificationDependencies,
+  type FormatIterationNotificationTitleOptions,
+  type FormatIterationNotificationMessageOptions,
+  type WindowsNotificationCommand,
+  type NotificationStdio,
   type NotificationRunner,
   type NotificationResult,
 } from "./notifications.ts";
@@ -439,9 +443,9 @@ describe("Native Iteration Notification Dispatcher (Issue #30)", () => {
     });
 
     test("safe fallback: handles non-Error thrown objects across runner, logger, and bell writer", () => {
-      let warnCount = 0;
-      const warnLogger = () => {
-        warnCount++;
+      const warnings: string[] = [];
+      const warnLogger = (msg: string) => {
+        warnings.push(msg);
       };
 
       // 1. Non-error thrown from bell writer
@@ -456,7 +460,8 @@ describe("Native Iteration Notification Dispatcher (Issue #30)", () => {
           warnLogger,
         },
       );
-      assert.equal(warnCount, 1);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /bell raw string error/);
 
       // 2. Non-error thrown from logger
       sendIterationNotification(
@@ -470,7 +475,8 @@ describe("Native Iteration Notification Dispatcher (Issue #30)", () => {
           warnLogger,
         },
       );
-      assert.equal(warnCount, 2);
+      assert.equal(warnings.length, 2);
+      assert.match(warnings[1], /logger raw string error/);
 
       // 3. Non-error thrown from runner
       sendIterationNotification(
@@ -485,7 +491,8 @@ describe("Native Iteration Notification Dispatcher (Issue #30)", () => {
           warnLogger,
         },
       );
-      assert.equal(warnCount, 3);
+      assert.equal(warnings.length, 3);
+      assert.match(warnings[2], /runner raw string error/);
     });
 
     test("accepts runner returning status null without throwing", () => {
