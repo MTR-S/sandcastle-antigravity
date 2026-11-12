@@ -642,6 +642,25 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.ok(executedCmd.includes("--build-arg AGENT_GID=1000"));
     });
 
+    test("strips trailing slashes to prevent escaped quotes on Windows shells", async () => {
+      const { runBuildImage } = await import("./cli.ts");
+      let executedCmd = "";
+
+      const result = await runBuildImage({
+        contextDir: "C:\\path\\with\\trailing\\",
+        dockerfile: "C:\\path\\with\\trailing\\Dockerfile",
+        logger: () => {},
+        runner: (cmd) => {
+          executedCmd = cmd;
+          return { status: 0, stdout: "", stderr: "" };
+        },
+      });
+
+      assert.equal(result.success, true);
+      assert.ok(!executedCmd.includes('\\"'));
+      assert.ok(executedCmd.includes('"C:\\path\\with\\trailing"'));
+    });
+
     test("handles docker build failure gracefully and returns success=false", async () => {
       const { runBuildImage } = await import("./cli.ts");
       const errors: string[] = [];

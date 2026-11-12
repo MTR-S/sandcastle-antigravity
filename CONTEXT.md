@@ -30,6 +30,22 @@ _Avoid_: linter isolado, build sem teste
 Conjunto de commits gerados pelos agentes *Implementer* e *Reviewer* nas branches de trabalho durante uma iteração do Phase Pipeline antes da consolidação pelo agente *Merger*.
 _Avoid_: commits intermediários, commits da branch, alterações locais, diff não consolidado
 
+**Pipeline Iteration**:
+Ciclo de orquestração do loop externo (1 até `MAX_ITERATIONS`, padrão 10) que coordena sequencialmente as quatro fases (*Planner*, *Implementer*, *Reviewer*, *Merger*) contra o Target Repository. Diferencia-se estritamente das iterações internas executadas pelos agentes dentro dos containers sandbox.
+_Avoid_: iteração de agente, loop interno, passo monolítico
+
+**Execution Mode**:
+Modo operacional de condução do loop de orquestração, configurado antes do início (`automatic` ou `interactive`). No modo *Automatic*, o orquestrador executa continuamente até a 10ª iteração ou esgotamento de issues emitindo alertas passivos; no modo *Interactive*, o orquestrador pausa ao fim de cada ciclo para confirmação ativa do operador.
+_Avoid_: flag de debug, pausa arbitrária, execução cega
+
+**Iteration Checkpoint**:
+Ponto de decisão interativo pós-merge acionado no modo *Interactive*, onde o operador avalia os resultados consolidados do ciclo recém-finalizado e escolhe entre avançar para o próximo ciclo, delegar as iterações restantes ao modo automático ou encerrar com limpeza segura.
+_Avoid_: prompt bloqueante genérico, interrupção forçada
+
+**Iteration Notification**:
+Mecanismo de sinalização disparado ao final de cada *Pipeline Iteration* (via notificação nativa de desktop no Windows e alertas sonoros/visuais no terminal), informando o número do ciclo concluído, as branches integradas e a solicitação de ação quando em checkpoint.
+_Avoid_: popup intrusivo, log silencioso
+
 ### Autenticação e Configuração
 
 **Host OAuth Session Bridge**:

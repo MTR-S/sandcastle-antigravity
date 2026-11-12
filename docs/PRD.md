@@ -113,3 +113,27 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Testes unitários com mock Git runners validam commits individuais, múltiplos commits cronológicos de Implementer + Reviewer, commits integrados pós-merge, commits de merge e cenários de fallback.
   - 100% dos testes passam de forma determinística.
 
+### Ticket #9: Notificações de Término de Ciclo e Modo Interativo de Orquestração (Issue #29 [Blocked by #30, #31, #32, #33] / Sub-issues #30, #31, #32, #33 / Spec `docs/specs/0001-iteration-notifications-and-interactive-mode.md`)
+- **Triage Label**: `ready-for-agent`
+- **Sub-Issues**:
+  - **#30**: `feat(notifications): Despachante de Notificacao Nativa de Iteracao (Windows & Terminal)`
+  - **#31**: `feat(cli): Configuracao de Modo de Execucao na CLI e no Pre-Run Banner`
+  - **#32**: `feat(orchestrator): Notificacao de Ciclo Integrada ao Loop em Modo Automatico` (Blocked by #30, #31)
+  - **#33**: `feat(orchestrator): Iteration Checkpoint e Controle Interativo Pos-Merge no Loop` (Blocked by #32)
+- **Escopo**:
+  - Registrar formalmente os conceitos de domínio `Pipeline Iteration`, `Execution Mode`, `Iteration Checkpoint` e `Iteration Notification` no glossário (`CONTEXT.md`).
+  - Implementar módulo de notificações nativas (`notifications.ts`) para Windows via PowerShell (`System.Windows.Forms.NotifyIcon`, `ShowBalloonTip`, som do sistema e caractere de alerta `\x07`), desacoplado e com suporte a mock runner para testes.
+  - Estender o analisador da CLI em `cli.ts` para suportar `--interactive`, `-i` e `--mode <automatic|interactive>`, implementando a regra de precedência de `--yes` sobre o modo interativo.
+  - Integrar a exibição e edição do `Execution Mode` no Pre-Run Configuration Banner (`banner.ts`).
+  - Encapsular a lógica de decisão pós-iteração no checkpoint (`handleIterationCheckpoint`) e integrá-la ao loop de 10 iterações em `main.mts`, disparando notificações a cada ciclo e apresentando o menu de checkpoint quando em modo interativo.
+  - Tratar cenários terminais (sem issues pendentes ou sem commits) com notificação direta e encerramento sem prompt desnecessário.
+  - Fornecer suíte completa de testes unitários para notificações, CLI, banner e transições do checkpoint com 100% dos testes passando.
+- **Critérios de Aceite**:
+  - `CONTEXT.md` atualizado com o vocabulário canônico.
+  - `sc-agy run --interactive` ou seleção no banner ativa o modo interativo com checkpoint ao fim de cada ciclo.
+  - Checkpoint oferece: Avançar, Continuar em automático e Encerrar com segurança.
+  - Ao final de cada ciclo (modos automático e interativo), notificação nativa do Windows é disparada com balão e som.
+  - Flag `--yes` / `-y` força modo automático e não trava em checkpoints.
+  - 100% dos testes unitários e de tipagem (`npm test`, `npm run typecheck`) passam com sucesso.
+
+

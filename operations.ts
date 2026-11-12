@@ -490,8 +490,10 @@ export async function runBuildImage(options: BuildImageOptions = {}): Promise<Bu
   const packageRoot = typeof __dirname !== "undefined"
     ? __dirname
     : fileURLToPath(new URL(".", import.meta.url));
-  const contextDir = options.contextDir ?? packageRoot;
-  const dockerfile = options.dockerfile ?? resolve(contextDir, "Dockerfile");
+  const rawContextDir = options.contextDir ?? packageRoot;
+  // Strip trailing slashes/backslashes so Windows shells do not treat \" as an escaped quote
+  const contextDir = rawContextDir.replace(/[/\\]+$/, "");
+  const dockerfile = (options.dockerfile ?? resolve(contextDir, "Dockerfile")).replace(/[/\\]+$/, "");
 
   let cmd = `docker build -t ${imageTag} -f "${dockerfile}" "${contextDir}"`;
   if (options.buildArgs) {
