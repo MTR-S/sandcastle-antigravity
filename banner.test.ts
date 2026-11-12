@@ -4,6 +4,8 @@ import type { TargetRepoConfig } from "./target-config.ts";
 import {
   resolvePreRunConfig,
   formatPreRunSummary,
+  formatExecutionMode,
+  DEFAULT_EXECUTION_MODE,
   runPreRunConfigurationBanner,
   type PreRunConfig,
   type PromptAdapter,
@@ -85,11 +87,44 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
     test("falls back to standard defaults when environment variables are omitted", () => {
       const config = resolvePreRunConfig(dummyTargetConfig, {});
 
+      assert.equal(config.mode, "automatic");
       assert.equal(config.issueLabel, "ready-for-agent");
       assert.equal(config.models.planner, "gemini-3.8-flash-high");
       assert.equal(config.models.implementer, "gemini-3.8-flash-high");
       assert.equal(config.models.reviewer, "gemini-3.8-flash-high");
       assert.equal(config.models.merger, "gemini-3.8-flash-high");
+    });
+
+    test("resolves execution mode override from options or environment variables", () => {
+      assert.equal(DEFAULT_EXECUTION_MODE, "automatic");
+      assert.equal(formatExecutionMode("automatic"), "automatic (default)");
+      assert.equal(formatExecutionMode("interactive"), "interactive");
+
+      const configFromOptions = resolvePreRunConfig(dummyTargetConfig, {}, { mode: "interactive" });
+      assert.equal(configFromOptions.mode, "interactive");
+
+      const configFromDirectString = resolvePreRunConfig(dummyTargetConfig, {}, "interactive");
+      assert.equal(configFromDirectString.mode, "interactive");
+
+      const configFromEnv = resolvePreRunConfig(dummyTargetConfig, {
+        EXECUTION_MODE: "interactive",
+      });
+      assert.equal(configFromEnv.mode, "interactive");
+
+      const configFromEnvCaseInsensitive = resolvePreRunConfig(dummyTargetConfig, {
+        EXECUTION_MODE: "INTERACTIVE",
+      });
+      assert.equal(configFromEnvCaseInsensitive.mode, "interactive");
+
+      const configFromEnvSandcastle = resolvePreRunConfig(dummyTargetConfig, {
+        SANDCASTLE_MODE: "interactive",
+      });
+      assert.equal(configFromEnvSandcastle.mode, "interactive");
+
+      const configFromEnvMode = resolvePreRunConfig(dummyTargetConfig, {
+        MODE: "interactive",
+      });
+      assert.equal(configFromEnvMode.mode, "interactive");
     });
 
     test("formats inspection summary containing all 8 parameters", () => {
@@ -114,6 +149,7 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
           reviewer: "gemini-3.8-flash-high",
           merger: "gemini-4-pro",
         },
+        mode: "automatic",
       };
 
       const summary = formatPreRunSummary(config);
@@ -125,10 +161,34 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
       assert.match(summary, /GitHub User\/Token.*your-github-account.*\[gh:cli\]/i);
       assert.match(summary, /Verification Command.*npm test/i);
       assert.match(summary, /Issue Label.*ready-for-agent/i);
+      assert.match(summary, /Execution Mode.*automatic \(default\)/i);
       assert.match(
         summary,
         /Models assigned per phase[\s\S]*Planner:\s*gemini-4-pro[\s\S]*Implementer:\s*gemini-3.8-flash-high[\s\S]*Reviewer:\s*gemini-3.8-flash-high[\s\S]*Merger:\s*gemini-4-pro/i,
       );
+    });
+
+    test("formats inspection summary displaying Execution Mode: interactive when mode is interactive", () => {
+      const config: PreRunConfig = {
+        targetRepoPath: "/projects/sample-app",
+        baseBranch: "developer",
+        protectedBranches: ["main"],
+        gitIdentity: {},
+        githubAuth: { source: "none" },
+        verifyCommand: "npm test",
+        issueLabel: "ready-for-agent",
+        models: {
+          planner: "gemini-4-pro",
+          implementer: "gemini-3.8-flash-high",
+          reviewer: "gemini-3.8-flash-high",
+          merger: "gemini-4-pro",
+        },
+        mode: "interactive",
+      };
+
+      const summary = formatPreRunSummary(config);
+      assert.match(summary, /Execution Mode.*interactive/i);
+      assert.doesNotMatch(summary, /Execution Mode.*automatic/i);
     });
 
     test("formats summary gracefully when git identity or github auth is unset", () => {
@@ -148,6 +208,7 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
           reviewer: "gemini-3.8-flash-high",
           merger: "gemini-3.8-flash-high",
         },
+        mode: "automatic",
       };
 
       const summary = formatPreRunSummary(config);
@@ -514,6 +575,68 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
 
       assert.equal(result.action, "start");
       assert.deepEqual(result.config, config);
+    });
+
+    test("allows toggling Execution Mode to interactive via select prompt", async () => {
+      const config = resolvePreRunConfig(dummyTargetConfig);
+      assert.equal(config.mode, "automatic");
+
+      const selectCalls = ["edit", "mode", "interactive", "confirm"];
+
+      const promptAdapter = createMockPromptAdapter({
+        select: async () => selectCalls.shift() ?? "confirm",
+      });
+
+      const result = await runPreRunConfigurationBanner({
+        config,
+        promptAdapter,
+      });
+
+      assert.equal(result.action, "start");
+      assert.equal(result.config.mode, "interactive");
+    });
+
+    test("allows toggling Execution Mode back to automatic via select prompt", async () => {
+      const config = resolvePreRunConfig(dummyTargetConfig, {}, { mode: "interactive" });
+      assert.equal(config.mode, "interactive");
+
+      const selectCalls = ["edit", "mode", "automatic", "confirm"];
+
+      const promptAdapter = createMockPromptAdapter({
+        select: async () => selectCalls.shift() ?? "confirm",
+      });
+
+      const result = await runPreRunConfigurationBanner({
+        config,
+        promptAdapter,
+      });
+
+      assert.equal(result.action, "start");
+      assert.equal(result.config.mode, "automatic");
+    });
+
+    test("handles prompt cancellation inside Execution Mode selection", async () => {
+      const config = resolvePreRunConfig(dummyTargetConfig);
+      let cancelCallbackInvoked = false;
+
+      const CANCEL_SYM = Symbol("cancel");
+      const selectCalls = ["edit", "mode", CANCEL_SYM];
+
+      const promptAdapter = createMockPromptAdapter({
+        select: async () => selectCalls.shift() ?? CANCEL_SYM,
+        isCancel: (val) => val === CANCEL_SYM,
+      });
+
+      const result = await runPreRunConfigurationBanner({
+        config,
+        promptAdapter,
+        onCancel: () => {
+          cancelCallbackInvoked = true;
+        },
+      });
+
+      assert.equal(result.action, "cancel");
+      assert.equal(cancelCallbackInvoked, true);
     });
   });
 

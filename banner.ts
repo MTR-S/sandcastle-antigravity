@@ -1,6 +1,8 @@
 import * as p from "@clack/prompts";
 import type { TargetRepoConfig } from "./target-config.ts";
 
+export type ExecutionMode = "automatic" | "interactive";
+
 export interface PhaseModels {
   readonly planner: string;
   readonly implementer: string;
@@ -24,10 +26,16 @@ export interface PreRunConfig {
   verifyCommand: string;
   issueLabel: string;
   models: PhaseModels;
+  mode: ExecutionMode;
 }
 
 const DEFAULT_AGENT_MODEL = "gemini-3.8-flash-high";
 const DEFAULT_ISSUE_LABEL = "ready-for-agent";
+export const DEFAULT_EXECUTION_MODE: ExecutionMode = "automatic";
+
+export interface ResolvePreRunConfigOptions {
+  readonly mode?: ExecutionMode;
+}
 
 /**
  * Resolves initial PreRunConfig combining detected target repository parameters
@@ -36,6 +44,7 @@ const DEFAULT_ISSUE_LABEL = "ready-for-agent";
 export function resolvePreRunConfig(
   targetConfig: TargetRepoConfig,
   env: Record<string, string | undefined> = process.env,
+  options?: ResolvePreRunConfigOptions | ExecutionMode,
 ): PreRunConfig {
   const defaultModel = env.AGENT_MODEL?.trim() || DEFAULT_AGENT_MODEL;
 
@@ -58,6 +67,21 @@ export function resolvePreRunConfig(
     env.TARGET_BRANCH?.trim() ||
     targetConfig.baseBranch;
 
+  const explicitMode: ExecutionMode | undefined =
+    typeof options === "string" ? options : options?.mode;
+
+  const envModeRaw = (
+    env.EXECUTION_MODE?.trim() ||
+    env.SANDCASTLE_MODE?.trim() ||
+    env.MODE?.trim()
+  )?.toLowerCase();
+  const envMode: ExecutionMode | undefined =
+    envModeRaw === "interactive" || envModeRaw === "automatic"
+      ? envModeRaw
+      : undefined;
+
+  const mode: ExecutionMode = explicitMode ?? envMode ?? DEFAULT_EXECUTION_MODE;
+
   return {
     targetRepoPath: targetConfig.targetRepoPath,
     baseBranch,
@@ -79,7 +103,15 @@ export function resolvePreRunConfig(
       reviewer: reviewerModel,
       merger: mergerModel,
     },
+    mode,
   };
+}
+
+/**
+ * Formats the ExecutionMode into a human-readable display string.
+ */
+export function formatExecutionMode(mode: ExecutionMode): string {
+  return mode === "interactive" ? "interactive" : `${DEFAULT_EXECUTION_MODE} (default)`;
 }
 
 /**
@@ -99,6 +131,7 @@ export function formatPreRunSummary(config: PreRunConfig): string {
       : "(not authenticated)";
 
   const verifyCmdStr = config.verifyCommand.trim() || "(none)";
+  const modeStr = formatExecutionMode(config.mode);
 
   const lines = [
     `Target Repository Path : ${config.targetRepoPath}`,
@@ -108,6 +141,7 @@ export function formatPreRunSummary(config: PreRunConfig): string {
     `GitHub User/Token      : ${githubAuthStr}`,
     `Verification Command   : ${verifyCmdStr}`,
     `Issue Label filter     : ${config.issueLabel}`,
+    `Execution Mode         : ${modeStr}`,
     `Models assigned per phase:`,
     `  • Planner: ${config.models.planner}`,
     `  • Implementer: ${config.models.implementer}`,
@@ -210,6 +244,7 @@ export async function runPreRunConfigurationBanner(
     gitIdentity: { ...options.config.gitIdentity },
     githubAuth: { ...options.config.githubAuth },
     models: { ...options.config.models },
+    mode: options.config.mode ?? "automatic",
   };
 
   prompts.intro("Sandcastle Antigravity Orchestrator");
@@ -289,6 +324,11 @@ export async function runPreRunConfigurationBanner(
             value: "issueLabel",
             label: "Issue Label filter",
             hint: currentConfig.issueLabel,
+          },
+          {
+            value: "mode",
+            label: "Execution Mode",
+            hint: formatExecutionMode(currentConfig.mode),
           },
           {
             value: "models",
@@ -404,6 +444,33 @@ export async function runPreRunConfigurationBanner(
         }
         if (typeof val === "string" && val.trim()) {
           currentConfig.issueLabel = val.trim();
+        }
+      } else if (field === "mode" || field === "executionMode") {
+        const modeChoice = await prompts.select({
+          message: "Select Execution Mode:",
+          options: [
+            {
+              value: "automatic",
+              label: "Automatic (continuous loop)",
+              hint: "Run all iterations continuously without pausing (default)",
+            },
+            {
+              value: "interactive",
+              label: "Interactive (checkpoint pauses)",
+              hint: "Pause after each iteration to inspect and confirm next steps",
+            },
+          ],
+          initialValue: currentConfig.mode,
+        });
+
+        if (prompts.isCancel(modeChoice)) {
+          prompts.cancel("Execution aborted by operator. Zero changes applied.");
+          if (options.onCancel) options.onCancel();
+          return { action: "cancel", config: currentConfig };
+        }
+
+        if (modeChoice === "automatic" || modeChoice === "interactive") {
+          currentConfig.mode = modeChoice;
         }
       } else if (field === "models") {
         const phase = await prompts.select({

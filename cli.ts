@@ -113,6 +113,13 @@ export {
   type NotificationResult,
 };
 
+export const ExecutionModeSchema = z.enum(["automatic", "interactive"]);
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+
+export const DEFAULT_CLI_EXECUTION_MODE: ExecutionMode = "automatic";
+export const CLI_INTERACTIVE_PRECEDENCE_WARNING =
+  "--yes flag takes precedence over interactive mode. Running in automatic mode.";
+
 export type CliCommand =
   | "run"
   | "rescue"
@@ -126,10 +133,13 @@ export interface CliParsedArgs {
   readonly command: CliCommand;
   readonly repoPath?: string;
   readonly yes: boolean;
+  readonly mode: ExecutionMode;
   readonly tag?: string;
   readonly buildArgs?: readonly string[];
   readonly unknownCommand?: string;
   readonly invalidArgError?: string;
+  readonly warning?: string;
+  readonly warnings?: readonly string[];
   readonly rawArgs: readonly string[];
 }
 
@@ -137,39 +147,55 @@ export const CliParsedArgsSchema = z.object({
   command: z.enum(["run", "rescue", "doctor", "build-image", "help", "version", "unknown"]),
   repoPath: z.string().optional(),
   yes: z.boolean(),
+  mode: ExecutionModeSchema.default(DEFAULT_CLI_EXECUTION_MODE),
   tag: z.string().optional(),
   buildArgs: z.array(z.string()).optional(),
   unknownCommand: z.string().optional(),
   invalidArgError: z.string().optional(),
+  warning: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
   rawArgs: z.array(z.string()),
 });
 
 export interface CliValidationResult {
   readonly valid: boolean;
   readonly error?: string;
+  readonly warning?: string;
+  readonly warnings?: readonly string[];
 }
 
 export function validateCliArgs(args: CliParsedArgs): CliValidationResult {
+  const warnings = {
+    warning: args.warning,
+    warnings: args.warnings,
+  };
+
   const schemaResult = CliParsedArgsSchema.safeParse(args);
   if (!schemaResult.success) {
     return {
       valid: false,
       error: `Invalid CLI arguments: ${schemaResult.error.message}`,
+      ...warnings,
     };
   }
   if (args.invalidArgError) {
     return {
       valid: false,
       error: args.invalidArgError,
+      ...warnings,
     };
   }
   if (args.command === "unknown") {
     return {
       valid: false,
       error: `Unknown subcommand: "${args.unknownCommand}".`,
+      ...warnings,
     };
   }
-  return { valid: true };
+  return {
+    valid: true,
+    ...warnings,
+  };
 }
 
 export interface CliIo {
@@ -232,6 +258,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     return {
       command: "help",
       yes: false,
+      mode: DEFAULT_CLI_EXECUTION_MODE,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -240,6 +267,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     return {
       command: "version",
       yes: false,
+      mode: DEFAULT_CLI_EXECUTION_MODE,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -248,6 +276,8 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
   let unknownCommand: string | undefined;
   let repoPath: string | undefined;
   let yes = false;
+  let interactiveRequested = false;
+  let explicitMode: ExecutionMode | undefined;
   let tag: string | undefined;
   let buildArgs: string[] = [];
   let invalidArgError: string | undefined;
@@ -266,6 +296,33 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     } else if (arg === "--yes" || arg === "-y") {
       yes = true;
       i++;
+    } else if (arg === "--interactive" || arg === "-i") {
+      interactiveRequested = true;
+      i++;
+    } else if (arg === "--mode" || arg.startsWith("--mode=")) {
+      let modeVal: string | undefined;
+      if (arg.startsWith("--mode=")) {
+        modeVal = arg.slice("--mode=".length);
+        i++;
+      } else if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
+        invalidArgError = `Option "${arg}" requires a mode argument ("auto", "automatic", or "interactive").`;
+        i++;
+      } else {
+        modeVal = args[i + 1];
+        i += 2;
+      }
+
+      if (modeVal !== undefined) {
+        const normalizedMode = modeVal.trim().toLowerCase();
+        if (normalizedMode === "auto" || normalizedMode === "automatic") {
+          explicitMode = "automatic";
+        } else if (normalizedMode === "interactive") {
+          explicitMode = "interactive";
+          interactiveRequested = true;
+        } else {
+          invalidArgError = `Invalid mode "${modeVal}". Valid modes are "automatic" (or "auto") and "interactive".`;
+        }
+      }
     } else if (arg === "--tag" || arg === "-t") {
       if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
         invalidArgError = `Option "${arg}" requires an image tag argument.`;
@@ -303,14 +360,33 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     command = explicitCommand;
   }
 
+  let mode: ExecutionMode = DEFAULT_CLI_EXECUTION_MODE;
+  let warning: string | undefined;
+  let warnings: string[] | undefined;
+
+  if (yes) {
+    mode = DEFAULT_CLI_EXECUTION_MODE;
+    if (interactiveRequested) {
+      warning = CLI_INTERACTIVE_PRECEDENCE_WARNING;
+      warnings = [warning];
+    }
+  } else if (explicitMode) {
+    mode = explicitMode;
+  } else if (interactiveRequested) {
+    mode = "interactive";
+  }
+
   return {
     command,
     repoPath,
     yes,
+    mode,
     tag,
     buildArgs: buildArgs.length > 0 ? Object.freeze(buildArgs) : undefined,
     unknownCommand,
     invalidArgError,
+    warning,
+    warnings: warnings ? Object.freeze(warnings) : undefined,
     rawArgs: Object.freeze(argv),
   };
 }
@@ -332,6 +408,8 @@ export function formatCliHelp(): string {
     "Options:",
     "  --repo, -r <path>  Target repository path (default: current directory)",
     "  --yes, -y          Skip interactive confirmation banner (non-interactive mode)",
+    "  --interactive, -i  Run orchestrator in interactive mode with post-iteration checkpoints",
+    "  --mode <mode>      Execution mode: automatic (or auto) | interactive (default: automatic)",
     "  --tag, -t <tag>    Docker image tag for build-image (default: sandcastle-agent)",
     "  --help, -h         Show help message",
     "  --version, -v      Show version number",
@@ -351,6 +429,10 @@ export async function dispatchCli(argv: readonly string[], io: CliIo = {}): Prom
     errorLog(`[ERROR] ${validation.error}`);
     errorLog(formatCliHelp());
     return 1;
+  }
+
+  for (const warn of validation.warnings ?? []) {
+    log(`[WARN] ${warn}`);
   }
 
   switch (parsed.command) {

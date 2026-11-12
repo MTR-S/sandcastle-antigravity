@@ -779,4 +779,174 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.ok(typeof cliModule.DEFAULT_NOTIFICATION_TITLE_PREFIX === "string");
     });
   });
+
+  describe("Execution Mode CLI Configuration & Precedence (Issue #31)", () => {
+    test("defaults mode to 'automatic' when neither --interactive nor --mode is specified", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run"]);
+      assert.equal(parsed.mode, "automatic");
+      assert.equal(parsed.warning, undefined);
+      assert.equal(parsed.warnings, undefined);
+    });
+
+    test("parses --interactive flag into mode 'interactive'", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--interactive"]);
+      assert.equal(parsed.mode, "interactive");
+      assert.equal(parsed.yes, false);
+      assert.equal(parsed.warning, undefined);
+    });
+
+    test("parses -i shorthand flag into mode 'interactive'", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "-i"]);
+      assert.equal(parsed.mode, "interactive");
+      assert.equal(parsed.yes, false);
+      assert.equal(parsed.warning, undefined);
+    });
+
+    test("parses --mode interactive into mode 'interactive'", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--mode", "interactive"]);
+      assert.equal(parsed.mode, "interactive");
+      assert.equal(parsed.warning, undefined);
+    });
+
+    test("parses --mode auto and --mode automatic into mode 'automatic'", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsedAuto = parseCliArgs(["run", "--mode", "auto"]);
+      assert.equal(parsedAuto.mode, "automatic");
+
+      const parsedAutomatic = parseCliArgs(["run", "--mode", "automatic"]);
+      assert.equal(parsedAutomatic.mode, "automatic");
+    });
+
+    test("parses --mode=interactive and --mode=auto with equals syntax", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsedEqInteractive = parseCliArgs(["run", "--mode=interactive"]);
+      assert.equal(parsedEqInteractive.mode, "interactive");
+
+      const parsedEqAuto = parseCliArgs(["run", "--mode=auto"]);
+      assert.equal(parsedEqAuto.mode, "automatic");
+    });
+
+    test("reports validation error when --mode lacks an argument or precedes another flag", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+      const parsedMissing = parseCliArgs(["run", "--mode"]);
+      const valMissing = validateCliArgs(parsedMissing);
+      assert.equal(valMissing.valid, false);
+      assert.match(valMissing.error ?? "", /requires a mode argument/i);
+
+      const parsedPreceding = parseCliArgs(["run", "--mode", "-y"]);
+      const valPreceding = validateCliArgs(parsedPreceding);
+      assert.equal(valPreceding.valid, false);
+      assert.match(valPreceding.error ?? "", /requires a mode argument/i);
+    });
+
+    test("reports validation error when --mode is passed an invalid value", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+      const parsedInvalid = parseCliArgs(["run", "--mode", "turbo"]);
+      const valInvalid = validateCliArgs(parsedInvalid);
+      assert.equal(valInvalid.valid, false);
+      assert.match(valInvalid.error ?? "", /Invalid mode "turbo"/i);
+    });
+
+    test("enforces precedence: --yes strictly sets mode to 'automatic' with warning when --interactive is passed", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--interactive", "--yes"]);
+      assert.equal(parsed.mode, "automatic");
+      assert.equal(parsed.yes, true);
+      assert.match(
+        parsed.warning ?? "",
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
+      assert.ok(
+        parsed.warnings?.some((w) =>
+          w.includes("--yes flag takes precedence over interactive mode. Running in automatic mode."),
+        ),
+      );
+
+      const val = validateCliArgs(parsed);
+      assert.equal(val.valid, true);
+      assert.ok(
+        val.warnings?.some((w) =>
+          w.includes("--yes flag takes precedence over interactive mode. Running in automatic mode."),
+        ),
+      );
+    });
+
+    test("enforces precedence with short flags -i and -y in any order", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed1 = parseCliArgs(["run", "-i", "-y"]);
+      assert.equal(parsed1.mode, "automatic");
+      assert.equal(parsed1.yes, true);
+      assert.match(
+        parsed1.warning ?? "",
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
+
+      const parsed2 = parseCliArgs(["run", "-y", "-i"]);
+      assert.equal(parsed2.mode, "automatic");
+      assert.equal(parsed2.yes, true);
+      assert.match(
+        parsed2.warning ?? "",
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
+    });
+
+    test("enforces precedence when --mode interactive is paired with --yes", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--mode", "interactive", "--yes"]);
+      assert.equal(parsed.mode, "automatic");
+      assert.equal(parsed.yes, true);
+      assert.match(
+        parsed.warning ?? "",
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
+    });
+
+    test("does NOT trigger precedence warning when --mode auto or automatic is passed with --yes", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--mode", "auto", "--yes"]);
+      assert.equal(parsed.mode, "automatic");
+      assert.equal(parsed.yes, true);
+      assert.equal(parsed.warning, undefined);
+      assert.equal(parsed.warnings, undefined);
+    });
+
+    test("dispatchCli logs informational warning when precedence overrides interactive mode to automatic", async () => {
+      const { dispatchCli } = await import("./cli.ts");
+      const logs: string[] = [];
+      let executedMode: string | undefined;
+
+      const code = await dispatchCli(["run", "--interactive", "--yes"], {
+        logger: (msg) => logs.push(msg),
+        runHandler: async (args) => {
+          executedMode = args.mode;
+          return 0;
+        },
+      });
+
+      assert.equal(code, 0);
+      assert.equal(executedMode, "automatic");
+      assert.ok(
+        logs.some((l) =>
+          l.includes("--yes flag takes precedence over interactive mode. Running in automatic mode."),
+        ),
+      );
+    });
+
+    test("cli.ts re-exports ExecutionMode type and ExecutionModeSchema", async () => {
+      const cliModule = await import("./cli.ts");
+      assert.ok(cliModule.ExecutionModeSchema);
+      assert.equal(cliModule.ExecutionModeSchema.safeParse("automatic").success, true);
+      assert.equal(cliModule.ExecutionModeSchema.safeParse("interactive").success, true);
+      assert.equal(cliModule.ExecutionModeSchema.safeParse("invalid").success, false);
+      assert.equal(cliModule.DEFAULT_CLI_EXECUTION_MODE, "automatic");
+      assert.match(
+        cliModule.CLI_INTERACTIVE_PRECEDENCE_WARNING,
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
+    });
+  });
 });
