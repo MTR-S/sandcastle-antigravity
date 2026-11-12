@@ -33,6 +33,25 @@ import {
   type RenderPhase3MergeSummaryOptions,
   type OperationsGitRunner,
 } from "./operations.ts";
+import {
+  TERMINAL_BELL_CHAR,
+  DEFAULT_NOTIFICATION_TITLE_PREFIX,
+  escapePowerShellSingleQuotedString,
+  formatIterationNotificationTitle,
+  formatIterationNotificationMessage,
+  formatIterationNotificationConsoleSummary,
+  buildWindowsNotificationScript,
+  buildWindowsNotificationCommand,
+  sendIterationNotification,
+  defaultNotificationRunner,
+  defaultTerminalBellWriter,
+  type IterationNotificationOptions,
+  type NotificationRunnerOptions,
+  type NotificationCommandResult,
+  type NotificationRunner,
+  type IterationNotificationDependencies,
+  type NotificationResult,
+} from "./notifications.ts";
 
 export {
   runRescue,
@@ -67,6 +86,23 @@ export {
   type FormatPhase3MergeSummaryOptions,
   type RenderPhase3MergeSummaryOptions,
   type OperationsGitRunner,
+  TERMINAL_BELL_CHAR,
+  DEFAULT_NOTIFICATION_TITLE_PREFIX,
+  escapePowerShellSingleQuotedString,
+  formatIterationNotificationTitle,
+  formatIterationNotificationMessage,
+  formatIterationNotificationConsoleSummary,
+  buildWindowsNotificationScript,
+  buildWindowsNotificationCommand,
+  sendIterationNotification,
+  defaultNotificationRunner,
+  defaultTerminalBellWriter,
+  type IterationNotificationOptions,
+  type NotificationRunnerOptions,
+  type NotificationCommandResult,
+  type NotificationRunner,
+  type IterationNotificationDependencies,
+  type NotificationResult,
 };
 
 export type CliCommand =

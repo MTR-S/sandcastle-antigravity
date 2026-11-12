@@ -763,5 +763,20 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(typeof cliModule.formatPhase3MergeSummary, "function");
       assert.equal(typeof cliModule.renderPhase3MergeSummary, "function");
     });
+
+    test("cli.ts re-exports native iteration notification dispatcher seams for CLI consumers (Issue #30)", async () => {
+      const cliModule = await import("./cli.ts");
+      assert.equal(typeof cliModule.sendIterationNotification, "function");
+      assert.equal(typeof cliModule.formatIterationNotificationTitle, "function");
+      assert.equal(typeof cliModule.formatIterationNotificationMessage, "function");
+      assert.equal(typeof cliModule.formatIterationNotificationConsoleSummary, "function");
+      assert.equal(typeof cliModule.buildWindowsNotificationScript, "function");
+      assert.equal(typeof cliModule.buildWindowsNotificationCommand, "function");
+      assert.equal(typeof cliModule.escapePowerShellSingleQuotedString, "function");
+      assert.equal(typeof cliModule.defaultNotificationRunner, "function");
+      assert.equal(typeof cliModule.defaultTerminalBellWriter, "function");
+      assert.equal(cliModule.TERMINAL_BELL_CHAR, "\x07");
+      assert.ok(typeof cliModule.DEFAULT_NOTIFICATION_TITLE_PREFIX === "string");
+    });
   });
 });
