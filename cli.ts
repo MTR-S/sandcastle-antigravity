@@ -68,6 +68,19 @@ import {
   type IterationNotificationDependencies,
   type NotificationResult,
 } from "./notifications.ts";
+export {
+  handleIterationCheckpoint,
+  formatCheckpointPromptMessage,
+  buildCheckpointOptions,
+  CHECKPOINT_ACTION_ADVANCE,
+  CHECKPOINT_ACTION_AUTOMATIC,
+  CHECKPOINT_ACTION_STOP,
+  DEFAULT_CHECKPOINT_MESSAGE,
+  type CheckpointAction,
+  type CheckpointContext,
+  type CheckpointDependencies,
+  type CheckpointResult,
+} from "./checkpoint.ts";
 
 export {
   runRescue,

@@ -985,5 +985,22 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
         /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
       );
     });
+
+    test("cli.ts re-exports checkpoint constants, options builder, message formatter, and handler", async () => {
+      const cliModule = await import("./cli.ts");
+      assert.equal(cliModule.CHECKPOINT_ACTION_ADVANCE, "advance");
+      assert.equal(cliModule.CHECKPOINT_ACTION_AUTOMATIC, "automatic");
+      assert.equal(cliModule.CHECKPOINT_ACTION_STOP, "stop");
+      assert.ok(typeof cliModule.DEFAULT_CHECKPOINT_MESSAGE === "string");
+      assert.equal(typeof cliModule.formatCheckpointPromptMessage, "function");
+      assert.equal(typeof cliModule.buildCheckpointOptions, "function");
+      assert.equal(typeof cliModule.handleIterationCheckpoint, "function");
+
+      const options = cliModule.buildCheckpointOptions(2, 10);
+      assert.equal(options.length, 3);
+      assert.equal(options[0].value, "advance");
+      assert.equal(options[1].value, "automatic");
+      assert.equal(options[2].value, "stop");
+    });
   });
 });

@@ -24,6 +24,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   const adr0003Path = resolve(packageRoot, "docs/adr/0003-cli-binary-alias.md");
   const adr0004Path = resolve(packageRoot, "docs/adr/0004-sequential-sandbox-git-identity.md");
   const adr0005Path = resolve(packageRoot, "docs/adr/0005-iteration-commits-terminal-tracking.md");
+  const adr0006Path = resolve(packageRoot, "docs/adr/0006-iteration-notifications-and-interactive-mode.md");
   const contextPath = resolve(packageRoot, "CONTEXT.md");
 
   const getReadme = createCachedFileReader(readmePath, "README.md");
@@ -32,6 +33,7 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
   const getAdr0003 = createCachedFileReader(adr0003Path, "docs/adr/0003-cli-binary-alias.md");
   const getAdr0004 = createCachedFileReader(adr0004Path, "docs/adr/0004-sequential-sandbox-git-identity.md");
   const getAdr0005 = createCachedFileReader(adr0005Path, "docs/adr/0005-iteration-commits-terminal-tracking.md");
+  const getAdr0006 = createCachedFileReader(adr0006Path, "docs/adr/0006-iteration-notifications-and-interactive-mode.md");
   const getContext = createCachedFileReader(contextPath, "CONTEXT.md");
 
   describe("package.json CLI Bin & Scripts Configuration", () => {
@@ -348,6 +350,44 @@ describe("Distribution Guide & CLI Packaging (Issue #11)", () => {
           /0005-iteration-commits-terminal-tracking\.md/i,
           "docs/PRD.md Ticket #8 must reference ADR 0005",
         );
+      });
+
+      test("docs/adr/0006-iteration-notifications-and-interactive-mode.md documents Iteration Notifications and Interactive Mode (Spec #29)", () => {
+        const adr = getAdr0006();
+        assert.match(adr, /Iteration Notifications/i, "ADR must define Iteration Notifications");
+        assert.match(adr, /Interactive Orchestration Mode/i, "ADR must define Interactive Orchestration Mode");
+        assert.match(adr, /Considered Options/i, "ADR must outline considered options");
+        assert.match(adr, /Consequences/i, "ADR must outline consequences");
+        assert.match(adr, /Pipeline Iteration/i, "ADR must cite Pipeline Iteration");
+        assert.match(adr, /Iteration Checkpoint/i, "ADR must cite Iteration Checkpoint");
+        assert.match(getReadme(), /0006-iteration-notifications-and-interactive-mode\.md/, "README.md must link to ADR 0006");
+      });
+
+      test("README.md documents Execution Modes, Iteration Notifications, and Interactive Checkpoint (Spec #29)", () => {
+        const readme = getReadme();
+        assert.match(readme, /Execution Modes/i, "README.md must document Execution Modes");
+        assert.match(readme, /Automatic Mode/i, "README.md must document Automatic Mode");
+        assert.match(readme, /Interactive Mode/i, "README.md must document Interactive Mode");
+        assert.match(readme, /Iteration Checkpoint/i, "README.md must document Iteration Checkpoint");
+        assert.match(readme, /Iteration Notification/i, "README.md must document Iteration Notification");
+      });
+
+      test("docs/PRD.md documents Ticket #9 for Spec #29 with reference to ADR 0006", () => {
+        const prd = getPrd();
+        assert.match(prd, /Ticket #9/i, "docs/PRD.md must document Ticket #9");
+        assert.match(
+          prd,
+          /0006-iteration-notifications-and-interactive-mode\.md/i,
+          "docs/PRD.md Ticket #9 must reference ADR 0006",
+        );
+      });
+
+      test("CONTEXT.md defines canonical domain concepts for Ticket #9 (Spec #29)", () => {
+        const context = getContext();
+        assert.match(context, /Pipeline Iteration/i, "CONTEXT.md must define Pipeline Iteration");
+        assert.match(context, /Execution Mode/i, "CONTEXT.md must define Execution Mode");
+        assert.match(context, /Iteration Checkpoint/i, "CONTEXT.md must define Iteration Checkpoint");
+        assert.match(context, /Iteration Notification/i, "CONTEXT.md must define Iteration Notification");
       });
     });
   });

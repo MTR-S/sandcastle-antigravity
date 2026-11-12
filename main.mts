@@ -55,6 +55,7 @@ import {
   formatNoCommitsNotificationMessage,
   formatIterationLimitNotificationMessage,
 } from "./notifications.ts";
+import { handleIterationCheckpoint } from "./checkpoint.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
@@ -111,6 +112,7 @@ if (bannerResult.action === "cancel") {
 
 const activeConfig = bannerResult.config;
 const activeBaseBranch = activeConfig.baseBranch;
+let activeExecutionMode = activeConfig.mode;
 
 // Construct effective targetConfig with active overrides
 targetConfig = Object.freeze({
@@ -502,6 +504,18 @@ try {
         }
       : {}),
   });
+
+  // Iteration Checkpoint gate in interactive mode (Issue #33)
+  const checkpoint = await handleIterationCheckpoint({
+    iteration,
+    totalIterations: MAX_ITERATIONS,
+    mode: activeExecutionMode,
+    integratedBranchesCount: completedBranches.length,
+  });
+  activeExecutionMode = checkpoint.nextMode;
+  if (!checkpoint.shouldContinue) {
+    break;
+  }
   }
 
   console.log("\nAll done.");

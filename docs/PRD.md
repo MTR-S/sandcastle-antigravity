@@ -122,6 +122,7 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - **#33**: `feat(orchestrator): Iteration Checkpoint e Controle Interativo Pos-Merge no Loop` (Blocked by #32)
 - **Escopo**:
   - Registrar formalmente os conceitos de domínio `Pipeline Iteration`, `Execution Mode`, `Iteration Checkpoint` e `Iteration Notification` no glossário (`CONTEXT.md`).
+  - Documentar a arquitetura, alternativas e decisões no ADR correspondente (`docs/adr/0006-iteration-notifications-and-interactive-mode.md`).
   - Implementar módulo de notificações nativas (`notifications.ts`) para Windows via PowerShell (`System.Windows.Forms.NotifyIcon`, `ShowBalloonTip`, som do sistema e caractere de alerta `\x07`), desacoplado e com suporte a mock runner para testes.
   - Estender o analisador da CLI em `cli.ts` para suportar `--interactive`, `-i` e `--mode <automatic|interactive>`, implementando a regra de precedência de `--yes` sobre o modo interativo.
   - Integrar a exibição e edição do `Execution Mode` no Pre-Run Configuration Banner (`banner.ts`).
@@ -130,6 +131,7 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Fornecer suíte completa de testes unitários para notificações, CLI, banner e transições do checkpoint com 100% dos testes passando.
 - **Critérios de Aceite**:
   - `CONTEXT.md` atualizado com o vocabulário canônico.
+  - `docs/adr/0006-iteration-notifications-and-interactive-mode.md` documenta a arquitetura e consequências.
   - `sc-agy run --interactive` ou seleção no banner ativa o modo interativo com checkpoint ao fim de cada ciclo.
   - Checkpoint oferece: Avançar, Continuar em automático e Encerrar com segurança.
   - Ao final de cada ciclo (modos automático e interativo), notificação nativa do Windows é disparada com balão e som.

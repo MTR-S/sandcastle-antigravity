@@ -33,6 +33,7 @@ See [`NOTICE.md`](./NOTICE.md) and [`LICENSE`](./LICENSE) for full attribution d
 - **[`docs/adr/0003-cli-binary-alias.md`](./docs/adr/0003-cli-binary-alias.md)**: Architectural Decision Record for the Official Shorthand Binary Alias (`sc-agy`) and CLI Argument Normalization.
 - **[`docs/adr/0004-sequential-sandbox-git-identity.md`](./docs/adr/0004-sequential-sandbox-git-identity.md)**: Architectural Decision Record for Sequential Sandbox Git Identity Configuration and `.gitconfig.lock` Race Elimination.
 - **[`docs/adr/0005-iteration-commits-terminal-tracking.md`](./docs/adr/0005-iteration-commits-terminal-tracking.md)**: Architectural Decision Record for Tracking and Displaying Iteration Commits in Terminal During Phase Pipeline Iterations.
+- **[`docs/adr/0006-iteration-notifications-and-interactive-mode.md`](./docs/adr/0006-iteration-notifications-and-interactive-mode.md)**: Architectural Decision Record for Iteration Notifications and Interactive Orchestration Mode.
 - **[`docs/PRD.md`](./docs/PRD.md)**: Product Requirements Document & Ticket Breakdown for the standalone CLI transition.
 - **[`docs/HOW_TO_TEST.md`](./docs/HOW_TO_TEST.md)**: Step-by-Step Testing & Onboarding Guide (Full walkthrough from scratch for testing on any local project).
 
@@ -228,6 +229,22 @@ Throughout each iteration of the Phase Pipeline, the orchestrator inspects the T
    Branches merged into develop.
      (no new commits integrated; base branch already up to date)
    ```
+
+#### Execution Modes, Iteration Notifications & Interactive Checkpoint
+
+Sandcastle Antigravity supports two operational modes for conducting the multi-agent loop:
+
+1. **Automatic Mode (`automatic`)** (Default):
+   The orchestrator executes pipeline iterations continuously until all issues are completed or the maximum iteration limit (10) is reached. At the end of each iteration, it dispatches an **Iteration Notification** (native Windows balloon notification, Asterisk alert sound, and terminal bell) informing the operator of progress without blocking execution.
+
+2. **Interactive Mode (`interactive`)**:
+   Configured via `--interactive` / `-i`, `--mode interactive`, or through the Pre-Run Configuration Banner. At the completion of each iteration, the orchestrator triggers the OS notification and halts at an **Iteration Checkpoint** prompt offering three actions:
+   - **Advance to next iteration (`X+1/10`)**: Proceed with the next cycle in interactive mode.
+   - **Continue remaining iterations automatically**: Dynamically switch the current run to automatic mode and proceed continuously without further pauses.
+   - **Stop safely now**: Cleanly abort execution with exit code 0, preserving all integrated Base Branch commits and triggering container/worktree cleanup.
+
+> [!NOTE]
+> **Headless / CI Precedence Rule:** When `--yes` or `-y` is passed, automatic mode is strictly enforced regardless of `--interactive` or `--mode interactive` flags, guaranteeing that automated scripts and CI pipelines never hang waiting for human input.
 
 #### Zero-Footprint Target Repository Guarantee
 
