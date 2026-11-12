@@ -317,6 +317,74 @@ describe("Iteration Checkpoint & Interactive Post-Merge Control (Issue #33 / Spe
       assert.ok(result.notificationResult);
       assert.equal(bellEmitted, true);
     });
+
+    test("handles throwing notifier gracefully without crashing checkpoint", async () => {
+      const mock = createMockPromptAdapter({ selectResult: CHECKPOINT_ACTION_ADVANCE });
+      const logs: string[] = [];
+
+      const result = await handleIterationCheckpoint(
+        {
+          iteration: 1,
+          totalIterations: 10,
+          mode: "interactive",
+          integratedBranchesCount: 1,
+        },
+        {
+          promptAdapter: mock.adapter,
+          notifier: () => {
+            throw new Error("Simulated notification service failure");
+          },
+          logger: (msg) => logs.push(msg),
+        },
+      );
+
+      assert.equal(result.action, "advance");
+      assert.equal(result.shouldContinue, true);
+      assert.equal(result.notificationResult, undefined);
+      assert.ok(logs.some((l) => l.includes("Failed to dispatch iteration notification")));
+    });
+
+    test("respects custom promptMessage override in CheckpointContext", async () => {
+      const mock = createMockPromptAdapter({ selectResult: CHECKPOINT_ACTION_ADVANCE });
+      const customMessage = "Custom checkpoint message for cycle 2";
+
+      const result = await handleIterationCheckpoint(
+        {
+          iteration: 2,
+          totalIterations: 10,
+          mode: "interactive",
+          promptMessage: customMessage,
+        },
+        {
+          promptAdapter: mock.adapter,
+        },
+      );
+
+      assert.equal(result.action, "advance");
+      assert.equal(mock.selectCalls.length, 1);
+      assert.equal(mock.selectCalls[0].message, customMessage);
+    });
+
+    test("handles unrecognized action from prompt adapter by stopping safely and logging", async () => {
+      const mock = createMockPromptAdapter({ selectResult: "unknown_action" });
+      const logs: string[] = [];
+
+      const result = await handleIterationCheckpoint(
+        {
+          iteration: 2,
+          totalIterations: 10,
+          mode: "interactive",
+        },
+        {
+          promptAdapter: mock.adapter,
+          logger: (msg) => logs.push(msg),
+        },
+      );
+
+      assert.equal(result.action, "stop");
+      assert.equal(result.shouldContinue, false);
+      assert.ok(logs.some((l) => l.includes("Unrecognized checkpoint action")));
+    });
   });
 
   describe("Seam 3: Orchestrator main.mts & cli.ts Re-export Verification", () => {

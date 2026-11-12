@@ -83,6 +83,8 @@ export interface CheckpointContext {
   readonly totalIterations: number;
   /** Current effective execution mode of the orchestrator. */
   readonly mode: ExecutionMode;
+  /** Optional custom prompt message override (defaults to formatCheckpointPromptMessage). */
+  readonly promptMessage?: string;
   /** Number of candidate branches merged into Base Branch this iteration. */
   readonly integratedBranchesCount?: number;
   /** Whether to dispatch a pipeline completion notification when not using a custom notifier. */
@@ -134,24 +136,29 @@ export async function handleIterationCheckpoint(
   let notificationResult: NotificationResult | undefined;
 
   // 1. Dispatch iteration notification if notifier or dispatchNotification is enabled
-  if (dependencies?.notifier) {
-    const res = dependencies.notifier({
-      iteration,
-      totalIterations,
-      integratedBranchesCount,
-    });
-    if (res) {
-      notificationResult = res;
-    }
-  } else if (options.dispatchNotification) {
-    notificationResult = sendPipelineIterationNotification(
-      {
+  try {
+    if (dependencies?.notifier) {
+      const res = dependencies.notifier({
         iteration,
         totalIterations,
         integratedBranchesCount,
-      },
-      dependencies?.notificationDependencies,
-    );
+      });
+      if (res) {
+        notificationResult = res;
+      }
+    } else if (options.dispatchNotification) {
+      notificationResult = sendPipelineIterationNotification(
+        {
+          iteration,
+          totalIterations,
+          integratedBranchesCount,
+        },
+        dependencies?.notificationDependencies,
+      );
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger(`[checkpoint] Warning: Failed to dispatch iteration notification: ${message}`);
   }
 
   // 2. Natural terminal boundary: if iteration reaches limit, do not display redundant prompt
@@ -176,7 +183,7 @@ export async function handleIterationCheckpoint(
 
   // 4. Interactive mode: halt and prompt operator
   const promptAdapter = dependencies?.promptAdapter ?? defaultPromptAdapter;
-  const promptMessage = formatCheckpointPromptMessage(iteration, totalIterations);
+  const promptMessage = options.promptMessage ?? formatCheckpointPromptMessage(iteration, totalIterations);
   const promptOptions = buildCheckpointOptions(iteration, totalIterations);
 
   const choice = await promptAdapter.select({
@@ -227,6 +234,7 @@ export async function handleIterationCheckpoint(
       };
 
     default:
+      logger(`[checkpoint] Unrecognized checkpoint action "${String(choice)}". Stopping orchestration cleanly.`);
       return {
         action: CHECKPOINT_ACTION_STOP,
         nextMode: "interactive",
