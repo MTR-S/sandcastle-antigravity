@@ -927,6 +927,11 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(cliModule.ExecutionModeSchema.safeParse("automatic").success, true);
       assert.equal(cliModule.ExecutionModeSchema.safeParse("interactive").success, true);
       assert.equal(cliModule.ExecutionModeSchema.safeParse("invalid").success, false);
+      assert.equal(cliModule.DEFAULT_CLI_EXECUTION_MODE, "automatic");
+      assert.match(
+        cliModule.CLI_INTERACTIVE_PRECEDENCE_WARNING,
+        /--yes flag takes precedence over interactive mode\. Running in automatic mode\./,
+      );
     });
   });
 });

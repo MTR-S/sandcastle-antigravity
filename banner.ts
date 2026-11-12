@@ -31,6 +31,7 @@ export interface PreRunConfig {
 
 const DEFAULT_AGENT_MODEL = "gemini-3.8-flash-high";
 const DEFAULT_ISSUE_LABEL = "ready-for-agent";
+export const DEFAULT_EXECUTION_MODE: ExecutionMode = "automatic";
 
 export interface ResolvePreRunConfigOptions {
   readonly mode?: ExecutionMode;
@@ -69,14 +70,17 @@ export function resolvePreRunConfig(
   const explicitMode: ExecutionMode | undefined =
     typeof options === "string" ? options : options?.mode;
 
-  const envModeRaw =
-    env.EXECUTION_MODE?.trim() || env.SANDCASTLE_MODE?.trim() || env.MODE?.trim();
+  const envModeRaw = (
+    env.EXECUTION_MODE?.trim() ||
+    env.SANDCASTLE_MODE?.trim() ||
+    env.MODE?.trim()
+  )?.toLowerCase();
   const envMode: ExecutionMode | undefined =
     envModeRaw === "interactive" || envModeRaw === "automatic"
       ? envModeRaw
       : undefined;
 
-  const mode: ExecutionMode = explicitMode || envMode || "automatic";
+  const mode: ExecutionMode = explicitMode ?? envMode ?? DEFAULT_EXECUTION_MODE;
 
   return {
     targetRepoPath: targetConfig.targetRepoPath,
@@ -104,6 +108,13 @@ export function resolvePreRunConfig(
 }
 
 /**
+ * Formats the ExecutionMode into a human-readable display string.
+ */
+export function formatExecutionMode(mode: ExecutionMode): string {
+  return mode === "interactive" ? "interactive" : `${DEFAULT_EXECUTION_MODE} (default)`;
+}
+
+/**
  * Formats a clean, readable inspection summary of all resolved parameters.
  */
 export function formatPreRunSummary(config: PreRunConfig): string {
@@ -120,8 +131,7 @@ export function formatPreRunSummary(config: PreRunConfig): string {
       : "(not authenticated)";
 
   const verifyCmdStr = config.verifyCommand.trim() || "(none)";
-  const modeStr =
-    config.mode === "interactive" ? "interactive" : "automatic (default)";
+  const modeStr = formatExecutionMode(config.mode);
 
   const lines = [
     `Target Repository Path : ${config.targetRepoPath}`,
@@ -318,7 +328,7 @@ export async function runPreRunConfigurationBanner(
           {
             value: "mode",
             label: "Execution Mode",
-            hint: currentConfig.mode === "interactive" ? "interactive" : "automatic (default)",
+            hint: formatExecutionMode(currentConfig.mode),
           },
           {
             value: "models",

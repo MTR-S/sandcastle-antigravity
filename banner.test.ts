@@ -4,6 +4,8 @@ import type { TargetRepoConfig } from "./target-config.ts";
 import {
   resolvePreRunConfig,
   formatPreRunSummary,
+  formatExecutionMode,
+  DEFAULT_EXECUTION_MODE,
   runPreRunConfigurationBanner,
   type PreRunConfig,
   type PromptAdapter,
@@ -94,18 +96,35 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
     });
 
     test("resolves execution mode override from options or environment variables", () => {
+      assert.equal(DEFAULT_EXECUTION_MODE, "automatic");
+      assert.equal(formatExecutionMode("automatic"), "automatic (default)");
+      assert.equal(formatExecutionMode("interactive"), "interactive");
+
       const configFromOptions = resolvePreRunConfig(dummyTargetConfig, {}, { mode: "interactive" });
       assert.equal(configFromOptions.mode, "interactive");
+
+      const configFromDirectString = resolvePreRunConfig(dummyTargetConfig, {}, "interactive");
+      assert.equal(configFromDirectString.mode, "interactive");
 
       const configFromEnv = resolvePreRunConfig(dummyTargetConfig, {
         EXECUTION_MODE: "interactive",
       });
       assert.equal(configFromEnv.mode, "interactive");
 
+      const configFromEnvCaseInsensitive = resolvePreRunConfig(dummyTargetConfig, {
+        EXECUTION_MODE: "INTERACTIVE",
+      });
+      assert.equal(configFromEnvCaseInsensitive.mode, "interactive");
+
       const configFromEnvSandcastle = resolvePreRunConfig(dummyTargetConfig, {
         SANDCASTLE_MODE: "interactive",
       });
       assert.equal(configFromEnvSandcastle.mode, "interactive");
+
+      const configFromEnvMode = resolvePreRunConfig(dummyTargetConfig, {
+        MODE: "interactive",
+      });
+      assert.equal(configFromEnvMode.mode, "interactive");
     });
 
     test("formats inspection summary containing all 8 parameters", () => {

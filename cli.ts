@@ -69,9 +69,12 @@ export {
   type OperationsGitRunner,
 };
 
-export type ExecutionMode = "automatic" | "interactive";
-
 export const ExecutionModeSchema = z.enum(["automatic", "interactive"]);
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+
+export const DEFAULT_CLI_EXECUTION_MODE: ExecutionMode = "automatic";
+export const CLI_INTERACTIVE_PRECEDENCE_WARNING =
+  "--yes flag takes precedence over interactive mode. Running in automatic mode.";
 
 export type CliCommand =
   | "run"
@@ -100,7 +103,7 @@ export const CliParsedArgsSchema = z.object({
   command: z.enum(["run", "rescue", "doctor", "build-image", "help", "version", "unknown"]),
   repoPath: z.string().optional(),
   yes: z.boolean(),
-  mode: ExecutionModeSchema.default("automatic"),
+  mode: ExecutionModeSchema.default(DEFAULT_CLI_EXECUTION_MODE),
   tag: z.string().optional(),
   buildArgs: z.array(z.string()).optional(),
   unknownCommand: z.string().optional(),
@@ -118,35 +121,36 @@ export interface CliValidationResult {
 }
 
 export function validateCliArgs(args: CliParsedArgs): CliValidationResult {
+  const warnings = {
+    warning: args.warning,
+    warnings: args.warnings,
+  };
+
   const schemaResult = CliParsedArgsSchema.safeParse(args);
   if (!schemaResult.success) {
     return {
       valid: false,
       error: `Invalid CLI arguments: ${schemaResult.error.message}`,
-      warning: args.warning,
-      warnings: args.warnings,
+      ...warnings,
     };
   }
   if (args.invalidArgError) {
     return {
       valid: false,
       error: args.invalidArgError,
-      warning: args.warning,
-      warnings: args.warnings,
+      ...warnings,
     };
   }
   if (args.command === "unknown") {
     return {
       valid: false,
       error: `Unknown subcommand: "${args.unknownCommand}".`,
-      warning: args.warning,
-      warnings: args.warnings,
+      ...warnings,
     };
   }
   return {
     valid: true,
-    warning: args.warning,
-    warnings: args.warnings,
+    ...warnings,
   };
 }
 
@@ -210,7 +214,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     return {
       command: "help",
       yes: false,
-      mode: "automatic",
+      mode: DEFAULT_CLI_EXECUTION_MODE,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -219,7 +223,7 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     return {
       command: "version",
       yes: false,
-      mode: "automatic",
+      mode: DEFAULT_CLI_EXECUTION_MODE,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -256,20 +260,19 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
       if (arg.startsWith("--mode=")) {
         modeVal = arg.slice("--mode=".length);
         i++;
+      } else if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
+        invalidArgError = `Option "${arg}" requires a mode argument ("auto", "automatic", or "interactive").`;
+        i++;
       } else {
-        if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
-          invalidArgError = `Option "${arg}" requires a mode argument ("auto", "automatic", or "interactive").`;
-          i++;
-        } else {
-          modeVal = args[i + 1];
-          i += 2;
-        }
+        modeVal = args[i + 1];
+        i += 2;
       }
+
       if (modeVal !== undefined) {
-        const lower = modeVal.trim().toLowerCase();
-        if (lower === "auto" || lower === "automatic") {
+        const normalizedMode = modeVal.trim().toLowerCase();
+        if (normalizedMode === "auto" || normalizedMode === "automatic") {
           explicitMode = "automatic";
-        } else if (lower === "interactive") {
+        } else if (normalizedMode === "interactive") {
           explicitMode = "interactive";
           interactiveRequested = true;
         } else {
@@ -313,14 +316,14 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     command = explicitCommand;
   }
 
-  let mode: ExecutionMode = "automatic";
+  let mode: ExecutionMode = DEFAULT_CLI_EXECUTION_MODE;
   let warning: string | undefined;
   let warnings: string[] | undefined;
 
   if (yes) {
-    mode = "automatic";
+    mode = DEFAULT_CLI_EXECUTION_MODE;
     if (interactiveRequested) {
-      warning = "--yes flag takes precedence over interactive mode. Running in automatic mode.";
+      warning = CLI_INTERACTIVE_PRECEDENCE_WARNING;
       warnings = [warning];
     }
   } else if (explicitMode) {
@@ -384,10 +387,8 @@ export async function dispatchCli(argv: readonly string[], io: CliIo = {}): Prom
     return 1;
   }
 
-  if (validation.warnings && validation.warnings.length > 0) {
-    for (const warn of validation.warnings) {
-      log(`[WARN] ${warn}`);
-    }
+  for (const warn of validation.warnings ?? []) {
+    log(`[WARN] ${warn}`);
   }
 
   switch (parsed.command) {

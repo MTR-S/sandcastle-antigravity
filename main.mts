@@ -60,10 +60,8 @@ if (!validation.valid) {
   process.exit(1);
 }
 
-if (validation.warnings && validation.warnings.length > 0) {
-  for (const warn of validation.warnings) {
-    console.warn(`[CLI WARN] ${warn}`);
-  }
+for (const warn of validation.warnings ?? []) {
+  console.warn(`[CLI WARN] ${warn}`);
 }
 
 if (parsedCli.command !== "run") {
