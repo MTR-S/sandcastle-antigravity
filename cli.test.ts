@@ -783,12 +783,17 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(typeof cliModule.renderPhase3MergeSummary, "function");
     });
 
-    test("cli.ts re-exports native iteration notification dispatcher seams for CLI consumers (Issue #30)", async () => {
+    test("cli.ts re-exports native iteration notification dispatcher seams for CLI consumers (Issue #30, #32)", async () => {
       const cliModule = await import("./cli.ts");
       assert.equal(typeof cliModule.sendIterationNotification, "function");
       assert.equal(typeof cliModule.formatIterationNotificationTitle, "function");
       assert.equal(typeof cliModule.formatIterationNotificationMessage, "function");
       assert.equal(typeof cliModule.formatIterationNotificationConsoleSummary, "function");
+      assert.equal(typeof cliModule.formatZeroUnblockedNotificationMessage, "function");
+      assert.equal(typeof cliModule.formatNoCommitsNotificationMessage, "function");
+      assert.equal(typeof cliModule.formatIterationLimitNotificationMessage, "function");
+      assert.equal(typeof cliModule.sendLoopTerminalNotification, "function");
+      assert.equal(typeof cliModule.sendPipelineIterationNotification, "function");
       assert.equal(typeof cliModule.buildWindowsNotificationScript, "function");
       assert.equal(typeof cliModule.buildWindowsNotificationCommand, "function");
       assert.equal(typeof cliModule.escapePowerShellSingleQuotedString, "function");

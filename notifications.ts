@@ -187,6 +187,30 @@ export function formatIterationNotificationMessage(
 }
 
 /**
+ * Formats notification body message when all issues are resolved or zero unblocked issues remain.
+ */
+export function formatZeroUnblockedNotificationMessage(): string {
+  return "Nenhuma issue pendente para execução (todas as tarefas concluídas).";
+}
+
+/**
+ * Formats notification body message when agents produced zero commits in a cycle.
+ */
+export function formatNoCommitsNotificationMessage(): string {
+  return "Nenhum commit produzido pelos agentes. Execução encerrada.";
+}
+
+/**
+ * Formats notification body message when the maximum iteration limit is reached.
+ */
+export function formatIterationLimitNotificationMessage(
+  integratedBranchesCount: number,
+): string {
+  const baseMessage = formatIterationNotificationMessage({ integratedBranchesCount });
+  return `${baseMessage} Limite máximo de iterações atingido.`;
+}
+
+/**
  * Formats an eye-catching terminal summary line containing alert icon and unicode bullet.
  */
 export function formatIterationNotificationConsoleSummary(
@@ -387,4 +411,107 @@ export function sendIterationNotification(
     args: dispatchedArgs,
     warning: failureWarning,
   };
+}
+
+/**
+ * Terminal reasons supported for orchestrator loop completion notifications.
+ */
+export type LoopTerminalReason =
+  | "zero_unblocked_issues"
+  | "no_commits_produced"
+  | "iteration_limit_reached";
+
+/**
+ * Options for dispatching loop terminal notifications.
+ */
+export interface TerminalNotificationOptions extends IterationNotificationDependencies {
+  readonly iteration: number;
+  readonly totalIterations: number;
+  readonly reason: LoopTerminalReason;
+  readonly integratedBranchesCount?: number;
+}
+
+/**
+ * Dispatches a completion notification when the orchestrator loop reaches a terminal state.
+ */
+export function sendLoopTerminalNotification(
+  options: TerminalNotificationOptions,
+  dependencies?: IterationNotificationDependencies,
+): NotificationResult {
+  const iteration = options.iteration;
+  const totalIterations = options.totalIterations;
+  const deps = dependencies ?? options;
+
+  if (options.reason === "zero_unblocked_issues") {
+    return sendIterationNotification(
+      {
+        iteration,
+        totalIterations,
+        integratedBranchesCount: 0,
+        title: "Orquestração concluída",
+        message: formatZeroUnblockedNotificationMessage(),
+      },
+      deps,
+    );
+  }
+
+  if (options.reason === "no_commits_produced") {
+    return sendIterationNotification(
+      {
+        iteration,
+        totalIterations,
+        integratedBranchesCount: 0,
+        title: `Iteração ${iteration}/${totalIterations} concluída`,
+        message: formatNoCommitsNotificationMessage(),
+      },
+      deps,
+    );
+  }
+
+  // iteration_limit_reached
+  const count = options.integratedBranchesCount ?? 0;
+  return sendIterationNotification(
+    {
+      iteration,
+      totalIterations,
+      integratedBranchesCount: count,
+      title: `Iteração ${iteration}/${totalIterations} concluída (limite atingido)`,
+      message: formatIterationLimitNotificationMessage(count),
+    },
+    deps,
+  );
+}
+
+/**
+ * Dispatches an iteration completion notification at a Pipeline Iteration boundary,
+ * automatically detecting whether the cycle reached the maximum iteration limit.
+ */
+export function sendPipelineIterationNotification(
+  options: {
+    readonly iteration: number;
+    readonly totalIterations: number;
+    readonly integratedBranchesCount: number;
+  } & IterationNotificationDependencies,
+  dependencies?: IterationNotificationDependencies,
+): NotificationResult {
+  const deps = dependencies ?? options;
+  if (options.iteration >= options.totalIterations) {
+    return sendLoopTerminalNotification(
+      {
+        iteration: options.iteration,
+        totalIterations: options.totalIterations,
+        reason: "iteration_limit_reached",
+        integratedBranchesCount: options.integratedBranchesCount,
+      },
+      deps,
+    );
+  }
+  return sendIterationNotification(
+    {
+      iteration: options.iteration,
+      totalIterations: options.totalIterations,
+      integratedBranchesCount: options.integratedBranchesCount,
+    },
+    deps,
+  );
 }

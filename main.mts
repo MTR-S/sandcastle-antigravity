@@ -49,6 +49,12 @@ import {
   getBranchHeadRevision,
   formatPhase3MergeSummary,
 } from "./operations.ts";
+import {
+  sendIterationNotification,
+  formatZeroUnblockedNotificationMessage,
+  formatNoCommitsNotificationMessage,
+  formatIterationLimitNotificationMessage,
+} from "./notifications.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
@@ -299,6 +305,13 @@ try {
   if (issues.length === 0) {
     // No unblocked work — either everything is done or everything is blocked.
     console.log("No unblocked issues to work on. Exiting.");
+    sendIterationNotification({
+      iteration,
+      totalIterations: MAX_ITERATIONS,
+      integratedBranchesCount: 0,
+      title: "Orquestração concluída",
+      message: formatZeroUnblockedNotificationMessage(),
+    });
     break;
   }
 
@@ -424,7 +437,14 @@ try {
   if (completedBranches.length === 0) {
     // All agents ran but none made commits — nothing to merge this cycle.
     console.log("No commits produced. Nothing to merge.");
-    continue;
+    sendIterationNotification({
+      iteration,
+      totalIterations: MAX_ITERATIONS,
+      integratedBranchesCount: 0,
+      title: `Iteração ${iteration}/${MAX_ITERATIONS} concluída`,
+      message: formatNoCommitsNotificationMessage(),
+    });
+    break;
   }
 
   // -------------------------------------------------------------------------
@@ -468,6 +488,20 @@ try {
   for (const line of phase3SummaryLines) {
     console.log(line);
   }
+
+  // Iteration completion notification (Issue #32)
+  const isIterationLimitReached = iteration === MAX_ITERATIONS;
+  sendIterationNotification({
+    iteration,
+    totalIterations: MAX_ITERATIONS,
+    integratedBranchesCount: completedBranches.length,
+    ...(isIterationLimitReached
+      ? {
+          title: `Iteração ${iteration}/${MAX_ITERATIONS} concluída (limite atingido)`,
+          message: formatIterationLimitNotificationMessage(completedBranches.length),
+        }
+      : {}),
+  });
   }
 
   console.log("\nAll done.");

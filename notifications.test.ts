@@ -1,5 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   TERMINAL_BELL_CHAR,
   DEFAULT_NOTIFICATION_TITLE_PREFIX,
@@ -10,12 +12,18 @@ import {
   buildWindowsNotificationScript,
   buildWindowsNotificationCommand,
   sendIterationNotification,
+  formatZeroUnblockedNotificationMessage,
+  formatNoCommitsNotificationMessage,
+  formatIterationLimitNotificationMessage,
+  sendLoopTerminalNotification,
+  sendPipelineIterationNotification,
   defaultNotificationRunner,
   defaultTerminalBellWriter,
   type IterationNotificationOptions,
   type IterationNotificationDependencies,
   type FormatIterationNotificationTitleOptions,
   type FormatIterationNotificationMessageOptions,
+  type TerminalNotificationOptions,
   type WindowsNotificationCommand,
   type NotificationStdio,
   type NotificationRunner,
@@ -648,6 +656,267 @@ describe("Native Iteration Notification Dispatcher (Issue #30)", () => {
         process.stdout.write = originalStdoutWrite;
         console.log = originalConsoleLog;
       }
+    });
+  });
+});
+
+describe("Orchestrator Loop Notification Integration in Automatic Mode (Issue #32)", () => {
+  describe("Seam 1: Notification Formatting & Dispatching at Iteration Boundaries", () => {
+    test("formats iteration boundary notification payload reporting cycle count and merged branches", () => {
+      let loggedMessage = "";
+      let bellSent = false;
+
+      const result = sendIterationNotification(
+        {
+          iteration: 1,
+          totalIterations: 10,
+          integratedBranchesCount: 3,
+        },
+        {
+          platform: "linux",
+          logger: (msg) => {
+            loggedMessage = msg;
+          },
+          terminalBellWriter: () => {
+            bellSent = true;
+          },
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.title, "Iteração 1/10 concluída");
+      assert.equal(result.message, "3 branches integradas à Base Branch com sucesso.");
+      assert.equal(bellSent, true);
+      assert.ok(loggedMessage.includes("Iteração 1/10 concluída"));
+      assert.ok(loggedMessage.includes("3 branches integradas à Base Branch com sucesso."));
+    });
+
+    test("dispatches on Windows at iteration boundary with mock runner verifying script and balloon payload", () => {
+      let executedCommand = "";
+      let executedArgs: readonly string[] = [];
+
+      const mockRunner: NotificationRunner = (cmd, args) => {
+        executedCommand = cmd;
+        executedArgs = args;
+        return { status: 0 };
+      };
+
+      const result = sendIterationNotification(
+        {
+          iteration: 2,
+          totalIterations: 10,
+          integratedBranchesCount: 1,
+        },
+        {
+          platform: "win32",
+          runner: mockRunner,
+          logger: () => {},
+          terminalBellWriter: () => {},
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.windowsDispatched, true);
+      assert.equal(result.soundPlayed, true);
+      assert.equal(result.balloonSent, true);
+      assert.equal(executedCommand, "powershell.exe");
+
+      const script = executedArgs[executedArgs.indexOf("-Command") + 1] ?? "";
+      assert.ok(script.includes("BalloonTipTitle = 'Iteração 2/10 concluída'"));
+      assert.ok(script.includes("BalloonTipText = '1 branch integrada à Base Branch com sucesso.'"));
+      assert.ok(script.includes("[System.Media.SystemSounds]::Asterisk.Play()"));
+    });
+
+    test("formats and dispatches final notification when iteration limit is reached", () => {
+      let executedArgs: readonly string[] = [];
+      const mockRunner: NotificationRunner = (_cmd, args) => {
+        executedArgs = args;
+        return { status: 0 };
+      };
+
+      const result = sendPipelineIterationNotification(
+        {
+          iteration: 10,
+          totalIterations: 10,
+          integratedBranchesCount: 2,
+        },
+        {
+          platform: "win32",
+          runner: mockRunner,
+          logger: () => {},
+          terminalBellWriter: () => {},
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.title, "Iteração 10/10 concluída (limite atingido)");
+      assert.ok(result.message.includes("2 branches integradas"));
+      assert.ok(result.message.includes("Limite máximo de iterações atingido."));
+
+      const script = executedArgs[executedArgs.indexOf("-Command") + 1] ?? "";
+      assert.ok(script.includes("BalloonTipTitle = 'Iteração 10/10 concluída (limite atingido)'"));
+      assert.ok(script.includes("Limite máximo de iterações atingido."));
+    });
+
+    test("formatIterationLimitNotificationMessage formats plural and singular branch count with limit warning", () => {
+      const singular = formatIterationLimitNotificationMessage(1);
+      assert.equal(singular, "1 branch integrada à Base Branch com sucesso. Limite máximo de iterações atingido.");
+
+      const plural = formatIterationLimitNotificationMessage(4);
+      assert.equal(plural, "4 branches integradas à Base Branch com sucesso. Limite máximo de iterações atingido.");
+
+      const zero = formatIterationLimitNotificationMessage(0);
+      assert.equal(zero, "Nenhuma branch integrada (ciclo finalizado). Limite máximo de iterações atingido.");
+    });
+  });
+
+  describe("Seam 2: Notification Dispatching at Loop Terminal States", () => {
+    test("dispatches final completion notification when planner finds zero unblocked issues", () => {
+      let loggedMessage = "";
+      let bellEmitted = false;
+      let runnerInvoked = false;
+
+      const mockRunner: NotificationRunner = () => {
+        runnerInvoked = true;
+        return { status: 0 };
+      };
+
+      const result = sendLoopTerminalNotification(
+        {
+          iteration: 3,
+          totalIterations: 10,
+          reason: "zero_unblocked_issues",
+        },
+        {
+          platform: "win32",
+          runner: mockRunner,
+          logger: (msg) => {
+            loggedMessage = msg;
+          },
+          terminalBellWriter: () => {
+            bellEmitted = true;
+          },
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.title, "Orquestração concluída");
+      assert.equal(result.message, formatZeroUnblockedNotificationMessage());
+      assert.ok(result.message.includes("Nenhuma issue pendente"));
+      assert.equal(runnerInvoked, true);
+      assert.equal(bellEmitted, true);
+      assert.ok(loggedMessage.includes("Orquestração concluída"));
+    });
+
+    test("dispatches informative notification when iteration yields zero commits without throwing", () => {
+      let loggedMessage = "";
+      let bellEmitted = false;
+      let runnerInvoked = false;
+
+      const mockRunner: NotificationRunner = () => {
+        runnerInvoked = true;
+        return { status: 0 };
+      };
+
+      const result = sendLoopTerminalNotification(
+        {
+          iteration: 1,
+          totalIterations: 10,
+          reason: "no_commits_produced",
+        },
+        {
+          platform: "win32",
+          runner: mockRunner,
+          logger: (msg) => {
+            loggedMessage = msg;
+          },
+          terminalBellWriter: () => {
+            bellEmitted = true;
+          },
+        },
+      );
+
+      assert.equal(result.success, true);
+      assert.equal(result.title, "Iteração 1/10 concluída");
+      assert.equal(result.message, formatNoCommitsNotificationMessage());
+      assert.ok(result.message.includes("Nenhum commit produzido"));
+      assert.equal(runnerInvoked, true);
+      assert.equal(bellEmitted, true);
+      assert.ok(loggedMessage.includes("Iteração 1/10 concluída"));
+      assert.ok(loggedMessage.includes("Nenhum commit produzido"));
+    });
+
+    test("handles runner failure at terminal states safely with zero throw", () => {
+      let loggedWarning = "";
+      const failingRunner: NotificationRunner = () => {
+        throw new Error("Failed to spawn notification process");
+      };
+
+      const result = sendLoopTerminalNotification(
+        {
+          iteration: 2,
+          totalIterations: 10,
+          reason: "zero_unblocked_issues",
+        },
+        {
+          platform: "win32",
+          runner: failingRunner,
+          warnLogger: (warn) => {
+            loggedWarning = warn;
+          },
+          logger: () => {},
+          terminalBellWriter: () => {},
+        },
+      );
+
+      assert.equal(result.success, false);
+      assert.ok(result.warning?.includes("Failed to spawn notification process"));
+      assert.ok(loggedWarning.includes("Warning: Failed to dispatch native Windows notification"));
+    });
+  });
+
+  describe("Seam 3: Orchestrator main.mts Integration & Wiring Verification", () => {
+    const mainMtsPath = resolve(process.cwd(), "main.mts");
+    const mainContent = readFileSync(mainMtsPath, "utf-8");
+
+    test("main.mts imports sendIterationNotification from ./notifications.ts", () => {
+      assert.match(
+        mainContent,
+        /import\s+{[^}]*\bsendIterationNotification\b[^}]*}\s+from\s+["']\.\/notifications(?:\.ts)?["']/,
+        "main.mts must import sendIterationNotification from ./notifications.ts",
+      );
+    });
+
+    test("main.mts invokes sendIterationNotification at the end of each Pipeline Iteration", () => {
+      assert.match(
+        mainContent,
+        /sendIterationNotification\s*\(\s*{[\s\S]*?iteration[\s\S]*?totalIterations[\s\S]*?integratedBranchesCount/,
+        "main.mts must invoke sendIterationNotification with iteration, totalIterations, and integratedBranchesCount",
+      );
+    });
+
+    test("main.mts dispatches notification and cleanly terminates when zero unblocked issues found", () => {
+      assert.match(
+        mainContent,
+        /if\s*\(\s*issues\.length\s*===\s*0\s*\)\s*{[\s\S]*?sendIterationNotification[\s\S]*?break;/,
+        "main.mts must notify and break when issues.length === 0",
+      );
+    });
+
+    test("main.mts dispatches informative notification and cleanly terminates when zero commits produced", () => {
+      assert.match(
+        mainContent,
+        /if\s*\(\s*completedBranches\.length\s*===\s*0\s*\)\s*{[\s\S]*?sendIterationNotification[\s\S]*?break;/,
+        "main.mts must notify and break (instead of continuing) when completedBranches.length === 0",
+      );
+    });
+
+    test("main.mts handles iteration limit reached notification when iteration reaches MAX_ITERATIONS", () => {
+      assert.match(
+        mainContent,
+        /MAX_ITERATIONS[\s\S]*?(?:iteration\s*===\s*MAX_ITERATIONS|iteration\s*>=\s*MAX_ITERATIONS|sendPipelineIterationNotification)/,
+        "main.mts must handle final completion notification when iteration reaches MAX_ITERATIONS",
+      );
     });
   });
 });
