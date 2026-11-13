@@ -46,6 +46,22 @@ _Avoid_: prompt bloqueante genérico, interrupção forçada
 Mecanismo de sinalização disparado ao final de cada *Pipeline Iteration* (via notificação nativa de desktop no Windows e alertas sonoros/visuais no terminal), informando o número do ciclo concluído, as branches integradas e a solicitação de ação quando em checkpoint.
 _Avoid_: popup intrusivo, log silencioso
 
+**Parallel Concurrency Cap**:
+Limite superior determinístico e configurável de issues simultâneas executadas na Fase 2 (*Execute + Review*) do Phase Pipeline (padrão 3), prevenindo sobrecarga de requisições, colisões de sessão e suspensão de conta pela API da Google.
+_Avoid_: paralelismo ilimitado, execução irrestrita, disparo em massa
+
+**Stagger Delay**:
+Intervalo temporizado com dispersão aleatória (*jitter* de ±2s em torno de 8s padrão) injetado antes da inicialização de cada sandbox e agente paralelo subsequente, amortecendo picos de rede e requisições simultâneas de contexto.
+_Avoid_: atraso arbitrário, sleep estático, pausa síncrona
+
+**Dynamic Issue Worker Pool**:
+Mecanismo de fila e despacho contínuo de tarefas que consome as issues selecionadas pelo *Planner* mantendo até `CONCURRENCY_CAP` tarefas ativas simultaneamente, alocando imediatamente a próxima issue assim que um slot é liberado pelo término de outra.
+_Avoid_: processamento em lotes rígidos, batch síncrono
+
+**Rate Limit Cool-down Backoff**:
+Janela temporizada de contenção defensiva (15 a 30s) acionada automaticamente ao interceptar erros transitórios de exaustão de cota (`RESOURCE_EXHAUSTED` / HTTP 429), pausando o avanço da fila para prevenir escalada para suspensão definitiva da conta.
+_Avoid_: retry cego, spam de requisições
+
 ### Autenticação e Configuração
 
 **Host OAuth Session Bridge**:

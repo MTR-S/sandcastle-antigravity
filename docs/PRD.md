@@ -138,4 +138,32 @@ Transformar a adaptação do `@ai-hero/sandcastle` com suporte ao Google Antigra
   - Flag `--yes` / `-y` força modo automático e não trava em checkpoints.
   - 100% dos testes unitários e de tipagem (`npm test`, `npm run typecheck`) passam com sucesso.
 
+### Ticket #10: Controle de Concorrência Paralela, Stagger Delay e Proteção Contra Rajadas na Fase 2 (Issue #34 [Blocked by #35, #36, #37, #38, #39] / Sub-issues #35, #36, #37, #38, #39 / Spec `docs/specs/0002-parallel-concurrency-throttling-and-burst-protection.md`)
+- **Triage Label**: `ready-for-agent`
+- **Parent Issue**: https://github.com/MTR-S/sandcastle-antigravity/issues/34
+- **Sub-Issues**:
+  - **#35**: `feat(cli): Configuracao de Concorrencia Paralela e Stagger Delay na CLI e no Banner`
+  - **#36**: `feat(antigravity): Reducao de Effort no Implementer e Deteccao de Rate Limit`
+  - **#37**: `feat(auth): Validacao Preventiva de Expiracao no Host OAuth Preflight`
+  - **#38**: `feat(orchestrator): Despachante da Fase 2 com Dynamic Issue Worker Pool e Stagger Delay` (Blocked by #35, #36)
+  - **#39**: `feat(orchestrator): Integracao do Worker Pool e Execucao Controlada no Loop Principal` (Blocked by #37, #38)
+- **Escopo**:
+  - Registrar no glossário de domínio (`CONTEXT.md`) os termos `Parallel Concurrency Cap`, `Stagger Delay`, `Dynamic Issue Worker Pool` e `Rate Limit Cool-down Backoff`.
+  - Documentar a arquitetura, contexto e alternativas no ADR `docs/adr/0007-parallel-concurrency-throttling-and-burst-protection.md`.
+  - Implementar o despachante com pool dinâmico de workers (`executePhase2WithWorkerPool`) gerenciando até 3 tarefas simultâneas (configurável via `--concurrency <N>` / `-c <N>` e `SANDCASTLE_CONCURRENCY`).
+  - Injetar o `Stagger Delay` (padrão 8s com ±2s de jitter) entre inicializações de workers paralelos (configurável via `--stagger-delay <segundos>` e `SANDCASTLE_STAGGER_DELAY`).
+  - Atualizar a configuração do agente `Implementer` para `effort: "low"` em `main.mts`, mantendo `Planner` (`high`), `Reviewer` (`medium`) e `maxIterations: 100`.
+  - Validar preventivamente a expiração do token OAuth no host antes da criação dos sandboxes em `auth-preflight.ts`.
+  - Interceptar erros de cota `RESOURCE_EXHAUSTED` (HTTP 429) no provedor com pausa temporizada preventiva de cool-down (15–30s).
+  - Exibir e permitir edição interativa de `Parallel Concurrency` e `Implementer Effort` no Pre-Run Configuration Banner (`banner.ts`).
+  - Fornecer suíte de testes unitários com timers e runners mockados cobrindo pool dinâmico, concorrência máxima, stagger delays, CLI e banner com 100% de sucesso.
+- **Critérios de Aceite**:
+  - `docs/specs/0002-parallel-concurrency-throttling-and-burst-protection.md` publicado.
+  - `CONTEXT.md` e `docs/adr/0007-parallel-concurrency-throttling-and-burst-protection.md` criados e sincronizados.
+  - Fase 2 executa até 3 issues em paralelo por padrão sem sobrecarga simultânea.
+  - Disparo de workers respeita o intervalo de stagger com jitter.
+  - Agente implementador roda com `effort: "low"`.
+  - 100% dos testes unitários e de tipos (`npm test`, `npm run typecheck`) passam com sucesso.
+
+
 
