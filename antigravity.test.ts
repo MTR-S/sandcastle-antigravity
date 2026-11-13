@@ -4,8 +4,11 @@ import {
   antigravity,
   parseAntigravityStreamLine,
   resolveRoleModel,
+  detectRateLimitError,
+  formatRateLimitWarning,
   type AgentRole,
   type RoleModelConfig,
+  type RateLimitDiagnosis,
 } from "./antigravity.ts";
 
 describe("Antigravity Agent Provider", () => {
@@ -188,6 +191,32 @@ describe("Antigravity Agent Provider", () => {
 
       assert.match(cmd.command, /--model gemini-3.8-flash/);
       assert.match(cmd.command, /--effort low/);
+    });
+
+    test("adopts default reasoning effort low for implementer role when effort is not specified", () => {
+      const provider = antigravity({ role: "implementer" });
+      const cmd = provider.buildPrintCommand({ prompt: "code" });
+      assert.match(cmd.command, /--effort low/);
+    });
+
+    test("preserves default reasoning effort high for planner and medium for reviewer", () => {
+      const plannerProvider = antigravity({ role: "planner" });
+      const plannerCmd = plannerProvider.buildPrintCommand({ prompt: "plan" });
+      assert.match(plannerCmd.command, /--effort high/);
+
+      const reviewerProvider = antigravity({ role: "reviewer" });
+      const reviewerCmd = reviewerProvider.buildPrintCommand({ prompt: "review" });
+      assert.match(reviewerCmd.command, /--effort medium/);
+
+      const mergerProvider = antigravity({ role: "merger" });
+      const mergerCmd = mergerProvider.buildPrintCommand({ prompt: "merge" });
+      assert.match(mergerCmd.command, /--effort high/);
+    });
+
+    test("explicit effort override takes precedence over role defaults", () => {
+      const provider = antigravity({ role: "implementer", effort: "high" });
+      const cmd = provider.buildPrintCommand({ prompt: "code" });
+      assert.match(cmd.command, /--effort high/);
     });
   });
 
@@ -419,6 +448,111 @@ describe("Antigravity Agent Provider", () => {
         parseAntigravityStreamLine(JSON.stringify({ event: "unknown_event" })),
         [],
       );
+    });
+
+    test("detects RESOURCE_EXHAUSTED and 429 error events in stream line and normalizes to text", () => {
+      const line = JSON.stringify({
+        event: "error",
+        error: {
+          code: 429,
+          status: "RESOURCE_EXHAUSTED",
+          message: "Quota exceeded for quota metric 'GenerateContent requests' and limit 'GenerateContent requests per minute'",
+        },
+      });
+
+      const events = parseAntigravityStreamLine(line);
+      assert.equal(events.length, 1);
+      assert.equal(events[0]?.type, "text");
+      assert.match(events[0]?.text ?? "", /\[RATE_LIMIT\]/);
+      assert.match(events[0]?.text ?? "", /RESOURCE_EXHAUSTED/);
+      assert.match(events[0]?.text ?? "", /429/);
+    });
+
+    test("detects rate limit in step_update error payload", () => {
+      const line = JSON.stringify({
+        event: "step_update",
+        step_update: {
+          error: "RESOURCE_EXHAUSTED: Rate limit exceeded (HTTP 429)",
+        },
+      });
+
+      const events = parseAntigravityStreamLine(line);
+      assert.equal(events.length, 1);
+      assert.equal(events[0]?.type, "text");
+      assert.match(events[0]?.text ?? "", /\[RATE_LIMIT\]/);
+      assert.match(events[0]?.text ?? "", /RESOURCE_EXHAUSTED/);
+    });
+  });
+
+  describe("Rate Limit Detection & Structured Warning", () => {
+    test("detectRateLimitError identifies RESOURCE_EXHAUSTED string in errors or outputs", () => {
+      const diag1 = detectRateLimitError("Error: 429 RESOURCE_EXHAUSTED quota exceeded");
+      assert.ok(diag1);
+      assert.equal(diag1?.status, "RESOURCE_EXHAUSTED");
+      assert.equal(diag1?.code, 429);
+      assert.equal(diag1?.retryable, true);
+
+      const diag2 = detectRateLimitError(new Error("RPC failed: RESOURCE_EXHAUSTED"));
+      assert.ok(diag2);
+      assert.equal(diag2?.status, "RESOURCE_EXHAUSTED");
+      assert.equal(diag2?.retryable, true);
+
+      const diag3 = detectRateLimitError({
+        error: { status: "RESOURCE_EXHAUSTED", code: 429, message: "Too many requests" },
+      });
+      assert.ok(diag3);
+      assert.equal(diag3?.status, "RESOURCE_EXHAUSTED");
+      assert.equal(diag3?.code, 429);
+      assert.equal(diag3?.message, "Too many requests");
+    });
+
+    test("notifies onRateLimit callback when provider parseStreamLine detects rate limit event", () => {
+      let notifiedDiag: RateLimitDiagnosis | null = null;
+      const provider = antigravity({
+        role: "implementer",
+        onRateLimit(diag) {
+          notifiedDiag = diag;
+        },
+      });
+
+      const line = JSON.stringify({
+        event: "error",
+        error: {
+          code: 429,
+          status: "RESOURCE_EXHAUSTED",
+          message: "Quota exceeded for GenerateContent",
+        },
+      });
+
+      provider.parseStreamLine(line);
+      assert.ok(notifiedDiag);
+      const diag = notifiedDiag as RateLimitDiagnosis;
+      assert.equal(diag.status, "RESOURCE_EXHAUSTED");
+      assert.equal(diag.code, 429);
+    });
+
+    test("detectRateLimitError returns null for unrelated errors or normal outputs", () => {
+      assert.equal(detectRateLimitError("Compilation error in App.java"), null);
+      assert.equal(detectRateLimitError(new Error("File not found: package.json")), null);
+      assert.equal(detectRateLimitError(null), null);
+      assert.equal(detectRateLimitError(undefined), null);
+      assert.equal(detectRateLimitError({ status: "SUCCESS" }), null);
+    });
+
+    test("formatRateLimitWarning formats human-readable and structured warning message", () => {
+      const diag: RateLimitDiagnosis = {
+        status: "RESOURCE_EXHAUSTED",
+        code: 429,
+        message: "Quota exceeded for models/gemini-3.8-flash",
+        retryable: true,
+      };
+
+      const warning = formatRateLimitWarning(diag);
+      assert.match(warning, /\[SANDCASTLE RATE LIMIT\]/);
+      assert.match(warning, /RESOURCE_EXHAUSTED/);
+      assert.match(warning, /HTTP 429/);
+      assert.match(warning, /Quota exceeded for models\/gemini-3.8-flash/);
+      assert.match(warning, /cool-down/i);
     });
   });
 });

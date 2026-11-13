@@ -21,6 +21,13 @@ export const ROLE_ENV_VARS: Record<AgentRole, string> = {
   merger: "MERGER_MODEL",
 };
 
+export const DEFAULT_ROLE_EFFORT: Record<AgentRole, "low" | "medium" | "high"> = {
+  planner: "high",
+  implementer: "low",
+  reviewer: "medium",
+  merger: "high",
+};
+
 export interface AntigravityOptions {
   /** Optional model identifier (e.g. "gemini-4-argon-high" or "gemini-4-argon") */
   readonly model?: string;
@@ -34,6 +41,8 @@ export interface AntigravityOptions {
   readonly role?: AgentRole;
   /** Optional explicit role-to-model configuration mapping */
   readonly roleModels?: RoleModelConfig;
+  /** Optional callback invoked when a rate limit or quota exhaustion event is detected */
+  readonly onRateLimit?: (diagnosis: RateLimitDiagnosis) => void;
 }
 
 export interface PrintCommand {
@@ -60,6 +69,101 @@ export type ParsedStreamEvent =
         readonly outputTokens: number;
       };
     };
+
+export interface RateLimitDiagnosis {
+  readonly status: "RESOURCE_EXHAUSTED";
+  readonly code: number;
+  readonly message?: string;
+  readonly retryable: boolean;
+}
+
+/**
+ * Detects whether an error object, string, or output contains signs of
+ * API rate limit or quota exhaustion (RESOURCE_EXHAUSTED / HTTP 429).
+ */
+export function detectRateLimitError(target: unknown): RateLimitDiagnosis | null {
+  if (target === null || target === undefined) {
+    return null;
+  }
+
+  // Object checks
+  if (typeof target === "object") {
+    const obj = target as Record<string, any>;
+    const status = obj.status ?? obj.error?.status ?? obj.step_update?.status;
+    const code =
+      obj.code ??
+      obj.statusCode ??
+      obj.error?.code ??
+      obj.error?.statusCode ??
+      obj.step_update?.code;
+    const rawError = obj.error ?? obj.step_update?.error;
+    const message =
+      obj.message ??
+      obj.error?.message ??
+      obj.step_update?.message ??
+      (typeof rawError === "string" ? rawError : undefined);
+
+    const hasResourceExhausted =
+      status === "RESOURCE_EXHAUSTED" ||
+      (typeof message === "string" && /RESOURCE_EXHAUSTED/i.test(message)) ||
+      (typeof obj.details === "string" && /RESOURCE_EXHAUSTED/i.test(obj.details));
+
+    const isHttp429 = code === 429 || code === "429" || (typeof message === "string" && /\b429\b/.test(message));
+
+    if (hasResourceExhausted || isHttp429) {
+      return {
+        status: "RESOURCE_EXHAUSTED",
+        code: 429,
+        message: typeof message === "string" ? message : undefined,
+        retryable: true,
+      };
+    }
+  }
+
+  // String checks
+  const str =
+    typeof target === "string"
+      ? target
+      : target instanceof Error
+        ? `${target.name}: ${target.message} ${target.stack ?? ""}`
+        : "";
+
+  if (str) {
+    const hasResourceExhausted = /RESOURCE_EXHAUSTED/i.test(str);
+    const has429 = /\b429\b/.test(str);
+    const hasQuotaOrRateLimit = /quota\s+exceeded|rate\s*limit\s*exceeded/i.test(str);
+
+    if (hasResourceExhausted || (has429 && hasQuotaOrRateLimit)) {
+      return {
+        status: "RESOURCE_EXHAUSTED",
+        code: 429,
+        message: str.trim(),
+        retryable: true,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Formats a structured console warning for rate limit cool-down backoff.
+ */
+export function formatRateLimitWarning(
+  diagnosis: RateLimitDiagnosis,
+  coolDownSeconds: number = 20,
+): string {
+  const parts = [
+    `[SANDCASTLE RATE LIMIT] API quota or rate limit exceeded (${diagnosis.status} / HTTP ${diagnosis.code}).`,
+  ];
+  if (diagnosis.message) {
+    parts.push(`  Details: ${diagnosis.message}`);
+  }
+  parts.push(
+    `  Applying defensive cool-down backoff (${coolDownSeconds}s) to prevent permanent account suspension.`,
+  );
+  return parts.join("\n");
+}
 
 export interface AgentProvider {
   readonly name: string;
@@ -89,6 +193,16 @@ export function parseAntigravityStreamLine(line: string): ParsedStreamEvent[] {
   try {
     const data = JSON.parse(trimmed);
     const events: ParsedStreamEvent[] = [];
+
+    // Check for rate limit / quota exhaustion error event or payload
+    const rateLimitDiag = detectRateLimitError(data);
+    if (rateLimitDiag) {
+      events.push({
+        type: "text",
+        text: `[RATE_LIMIT] ${rateLimitDiag.status} (code ${rateLimitDiag.code}): ${rateLimitDiag.message ?? ""}`.trim(),
+      });
+      return events;
+    }
 
     // 1. Session initialization / session identifier
     if (data.event === "init" || data.type === "init") {
@@ -319,7 +433,9 @@ export function antigravity(
 
   const resolvedModelRaw = explicitModel ?? resolveRoleModel(options);
 
-  const parsed = parseModelIdentifier(resolvedModelRaw, options?.effort);
+  const fallbackEffort =
+    options?.effort ?? (options?.role ? DEFAULT_ROLE_EFFORT[options.role] : undefined);
+  const parsed = parseModelIdentifier(resolvedModelRaw, fallbackEffort);
   const activeModel = parsed.model;
   const effort = parsed.effort;
   const mode = options?.mode ?? "accept-edits";
@@ -357,7 +473,14 @@ export function antigravity(
     },
 
     parseStreamLine(line: string): ParsedStreamEvent[] {
-      return parseAntigravityStreamLine(line);
+      const events = parseAntigravityStreamLine(line);
+      if (options?.onRateLimit) {
+        const diag = detectRateLimitError(line);
+        if (diag) {
+          options.onRateLimit(diag);
+        }
+      }
+      return events;
     },
   };
 }
