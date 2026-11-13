@@ -83,6 +83,21 @@ export {
 } from "./checkpoint.ts";
 
 export {
+  calculateStaggerDelayMs,
+  executePhase2WithWorkerPool,
+  DEFAULT_JITTER_RATIO,
+  DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS,
+  type WorkerPoolIssue,
+  type WorkerTaskOutcome,
+  type WorkerTaskRunner,
+  type WorkerPoolOptions,
+  type WorkerPoolResult,
+  type CalculateStaggerDelayOptions,
+  type DelayFunction,
+  type RandomGenerator,
+} from "./worker-pool.ts";
+
+export {
   runRescue,
   type RescueOptions,
   type RescueResult,
