@@ -43,7 +43,7 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
       assert.equal(commits[0].message, "feat(cli): add initial branch implementation");
 
       assert.equal(executedCommands.length, 1);
-      assert.equal(executedCommands[0].cwd, "/mock/repo");
+      assert.equal(executedCommands[0].cwd, resolve("/mock/repo"));
       assert.match(executedCommands[0].cmd, /git log/);
       assert.match(executedCommands[0].cmd, /--reverse/);
       assert.match(executedCommands[0].cmd, /feat\/sc-agy\.\.sandcastle\/issue-20/);
@@ -666,7 +666,7 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
         assert.equal(commits[0].message, "feat(operations): implement post-merge seam");
 
         assert.equal(executedCommands.length, 1);
-        assert.equal(executedCommands[0].cwd, "/mock/repo");
+        assert.equal(executedCommands[0].cwd, resolve("/mock/repo"));
         assert.match(executedCommands[0].cmd, /git log/);
         assert.match(executedCommands[0].cmd, /--reverse/);
         assert.match(
@@ -993,7 +993,7 @@ describe("Branch Commit Inspection Seam for Iteration Commits (Issue #20)", () =
 
         assert.equal(headSha, "572a89058749b38183d2de318c8a863a72ad883f");
         assert.equal(executedCommands.length, 1);
-        assert.equal(executedCommands[0].cwd, "/mock/repo");
+        assert.equal(executedCommands[0].cwd, resolve("/mock/repo"));
         assert.equal(executedCommands[0].cmd, "git rev-parse feat/sc-agy");
       });
 
