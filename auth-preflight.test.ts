@@ -6,6 +6,7 @@ import { execSync } from "node:child_process";
 import {
   extractWindowsCredential,
   validateOAuthPayload,
+  checkTokenExpiry,
   formatOAuthPayloadForContainer,
   runAuthPreflight,
   type AuthPreflightOptions,
@@ -16,12 +17,14 @@ describe("Host OAuth Pre-flight Validation & Fail-Fast Logging", () => {
   const testLogDir = resolve(process.cwd(), ".sandcastle/logs");
   const testLogPath = join(testLogDir, "auth-failure.log");
 
+  const futureExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
   const validTokenObj = {
     token: {
       access_token: "test-access-token-xyz",
       token_type: "Bearer",
       refresh_token: "test-refresh-token-123",
-      expiry: "2026-09-18T18:00:00.000Z",
+      expiry: futureExpiry,
     },
     auth_method: "consumer",
     id_token: "test-id-token",
@@ -82,7 +85,7 @@ describe("Host OAuth Pre-flight Validation & Fail-Fast Logging", () => {
       if (result.valid) {
         assert.equal(result.token.access_token, "test-access-token-xyz");
         assert.equal(result.token.refresh_token, "test-refresh-token-123");
-        assert.equal(result.token.expiry, "2026-09-18T18:00:00.000Z");
+        assert.equal(result.token.expiry, futureExpiry);
         assert.equal(result.payload, validJsonString);
       }
     });
@@ -156,6 +159,44 @@ describe("Host OAuth Pre-flight Validation & Fail-Fast Logging", () => {
       if (!result.valid) {
         assert.match(result.error, /expiry/i);
       }
+    });
+  });
+
+  describe("checkTokenExpiry", () => {
+    const baseNow = 1700000000000;
+
+    test("identifies expired tokens with negative or zero time until expiry", () => {
+      const expiredPast = new Date(baseNow - 10000).toISOString();
+      const res = checkTokenExpiry(expiredPast, baseNow);
+      assert.equal(res.valid, false);
+      assert.equal(res.expired, true);
+      assert.equal(res.expiringSoon, true);
+      assert.match(res.error!, /expired at/i);
+    });
+
+    test("identifies tokens expiring within safety buffer (< 5 minutes)", () => {
+      const expiringSoon = new Date(baseNow + 2 * 60 * 1000).toISOString();
+      const res = checkTokenExpiry(expiringSoon, baseNow);
+      assert.equal(res.valid, false);
+      assert.equal(res.expired, false);
+      assert.equal(res.expiringSoon, true);
+      assert.match(res.error!, /expiring in/i);
+    });
+
+    test("returns valid for tokens well outside safety buffer (> 5 minutes)", () => {
+      const validFuture = new Date(baseNow + 10 * 60 * 1000).toISOString();
+      const res = checkTokenExpiry(validFuture, baseNow);
+      assert.equal(res.valid, true);
+      assert.equal(res.expired, false);
+      assert.equal(res.expiringSoon, false);
+      assert.equal(res.error, undefined);
+    });
+
+    test("handles invalid date format cleanly", () => {
+      const res = checkTokenExpiry("not-a-date", baseNow);
+      assert.equal(res.valid, false);
+      assert.equal(res.expired, true);
+      assert.match(res.error!, /invalid 'expiry'/i);
     });
   });
 
@@ -263,6 +304,111 @@ describe("Host OAuth Pre-flight Validation & Fail-Fast Logging", () => {
       const logContent = readFileSync(testLogPath, "utf-8");
       assert.match(logContent, /\[ERROR\]/);
       assert.match(logContent, /access_token/i);
+    });
+
+    test("fails fast when token is expired: logs failure, prints remediation, and exits 1", () => {
+      let exitCode: number | undefined;
+      const errorsLogged: string[] = [];
+
+      const expiredObj = {
+        token: {
+          access_token: "test-access-token-xyz",
+          refresh_token: "test-refresh-token-123",
+          expiry: "2020-01-01T00:00:00.000Z",
+        },
+      };
+
+      assert.throws(
+        () => {
+          runAuthPreflight({
+            credentialReader: () => JSON.stringify(expiredObj),
+            logPath: testLogPath,
+            consoleError: (msg) => errorsLogged.push(msg),
+            exitFn: (code) => {
+              exitCode = code;
+              throw new Error(`Process exited with code ${code}`);
+            },
+          });
+        },
+        /Process exited with code 1/,
+      );
+
+      assert.equal(exitCode, 1);
+
+      const combinedConsoleOutput = errorsLogged.join("\n");
+      assert.match(combinedConsoleOutput, /expired/i);
+      assert.match(combinedConsoleOutput, /agy login/i);
+
+      assert.equal(existsSync(testLogPath), true);
+      const logContent = readFileSync(testLogPath, "utf-8");
+      assert.match(logContent, /\[ERROR\]/);
+      assert.match(logContent, /expired/i);
+    });
+
+    test("fails fast when token is expiring within 5 minutes safety buffer", () => {
+      let exitCode: number | undefined;
+      const errorsLogged: string[] = [];
+
+      // Token expiring in 2 minutes (120 seconds < 300 seconds buffer)
+      const now = 1700000000000;
+      const expiringSoonObj = {
+        token: {
+          access_token: "test-access-token-xyz",
+          refresh_token: "test-refresh-token-123",
+          expiry: new Date(now + 2 * 60 * 1000).toISOString(),
+        },
+      };
+
+      assert.throws(
+        () => {
+          runAuthPreflight({
+            credentialReader: () => JSON.stringify(expiringSoonObj),
+            logPath: testLogPath,
+            nowFn: () => now,
+            consoleError: (msg) => errorsLogged.push(msg),
+            exitFn: (code) => {
+              exitCode = code;
+              throw new Error(`Process exited with code ${code}`);
+            },
+          });
+        },
+        /Process exited with code 1/,
+      );
+
+      assert.equal(exitCode, 1);
+
+      const combinedConsoleOutput = errorsLogged.join("\n");
+      assert.match(combinedConsoleOutput, /expiring in/i);
+
+      assert.equal(existsSync(testLogPath), true);
+      const logContent = readFileSync(testLogPath, "utf-8");
+      assert.match(logContent, /expiring in/i);
+    });
+
+    test("passes when token expires well beyond safety buffer", () => {
+      let exitCalled = false;
+      const now = 1700000000000;
+      const healthyTokenObj = {
+        token: {
+          access_token: "healthy-acc",
+          refresh_token: "healthy-ref",
+          expiry: new Date(now + 30 * 60 * 1000).toISOString(), // 30 minutes in future
+        },
+      };
+
+      const result = runAuthPreflight({
+        credentialReader: () => JSON.stringify(healthyTokenObj),
+        logPath: testLogPath,
+        nowFn: () => now,
+        exitFn: (code) => {
+          exitCalled = true;
+          throw new Error(`Exit ${code}`);
+        },
+      });
+
+      assert.equal(exitCalled, false);
+      assert.equal(result.token.access_token, "healthy-acc");
+      assert.equal(existsSync(testLogPath), false);
     });
 
     test("ensures zero git dirtying on authentication failure", () => {

@@ -13,6 +13,7 @@ import { dirname, resolve } from "node:path";
 
 export const DEFAULT_CREDENTIAL_TARGET = "gemini:antigravity";
 export const DEFAULT_LOG_PATH = resolve(process.cwd(), ".sandcastle/logs/auth-failure.log");
+export const EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 export interface OAuthTokenData {
   readonly access_token: string;
@@ -62,6 +63,8 @@ export interface AuthPreflightOptions {
   readonly credentialReader?: (target: string) => string | null;
   readonly runner?: CommandRunner;
   readonly platform?: string;
+  readonly nowFn?: () => number;
+  readonly expiryBufferMs?: number;
 }
 
 export interface AuthPreflightSuccess {
@@ -173,6 +176,63 @@ export function extractWindowsCredential(
   } catch {
     return null;
   }
+}
+
+/**
+ * Validates the expiry timestamp of an OAuth token against a reference time.
+ *
+ * @param expiry Expiry string or number (ISO date string or epoch millis)
+ * @param now Reference timestamp in milliseconds (default: Date.now())
+ * @param bufferMs Minimum safety buffer in milliseconds (default: 5 minutes)
+ * @returns Status object indicating whether token is valid, expired, or expiring soon
+ */
+export function checkTokenExpiry(
+  expiry: string | number,
+  now: number = Date.now(),
+  bufferMs: number = EXPIRY_BUFFER_MS,
+): { valid: boolean; expired: boolean; expiringSoon: boolean; timeUntilExpiryMs: number; error?: string } {
+  const expiryDate = new Date(expiry);
+  const expiryTime = expiryDate.getTime();
+
+  if (isNaN(expiryTime)) {
+    return {
+      valid: false,
+      expired: true,
+      expiringSoon: true,
+      timeUntilExpiryMs: 0,
+      error: `Invalid 'expiry' timestamp format: ${expiry}`,
+    };
+  }
+
+  const timeUntilExpiryMs = expiryTime - now;
+
+  if (timeUntilExpiryMs <= 0) {
+    return {
+      valid: false,
+      expired: true,
+      expiringSoon: true,
+      timeUntilExpiryMs,
+      error: `OAuth token expired at ${expiryDate.toISOString()} (${Math.abs(Math.round(timeUntilExpiryMs / 1000))}s ago).`,
+    };
+  }
+
+  if (timeUntilExpiryMs < bufferMs) {
+    const remainingSeconds = Math.round(timeUntilExpiryMs / 1000);
+    return {
+      valid: false,
+      expired: false,
+      expiringSoon: true,
+      timeUntilExpiryMs,
+      error: `OAuth token is expiring in ${remainingSeconds}s (less than ${Math.round(bufferMs / 1000 / 60)} minutes buffer).`,
+    };
+  }
+
+  return {
+    valid: true,
+    expired: false,
+    expiringSoon: false,
+    timeUntilExpiryMs,
+  };
 }
 
 /**
@@ -304,6 +364,11 @@ export function logAuthFailure(logPath: string, reason: string): void {
  * Generates an actionable remediation notice for the terminal.
  */
 function formatRemediationNotice(reason: string, target: string): string {
+  const isExpiry = /expir/i.test(reason);
+  const detail = isExpiry
+    ? "   The Google Antigravity CLI OAuth session on this host has expired or is expiring soon."
+    : "   The Google Antigravity CLI OAuth credentials were not found on this host.";
+
   return [
     "",
     "================================================================================",
@@ -313,7 +378,7 @@ function formatRemediationNotice(reason: string, target: string): string {
     ` Reason:   ${reason}`,
     "",
     " Remediation:",
-    "   The Google Antigravity CLI OAuth credentials were not found on this host.",
+    detail,
     "   Please authenticate by running the Antigravity CLI login command on your machine:",
     "",
     "     agy login",
@@ -355,6 +420,8 @@ export function runAuthPreflight(options?: AuthPreflightOptions): AuthPreflightS
   const logPath = options?.logPath ?? DEFAULT_LOG_PATH;
   const consoleError = options?.consoleError ?? console.error;
   const exitFn = options?.exitFn ?? process.exit;
+  const now = options?.nowFn ? options.nowFn() : Date.now();
+  const expiryBufferMs = options?.expiryBufferMs ?? EXPIRY_BUFFER_MS;
 
   const raw = options?.credentialReader
     ? options.credentialReader(target)
@@ -372,6 +439,12 @@ export function runAuthPreflight(options?: AuthPreflightOptions): AuthPreflightS
   const validation = validateOAuthPayload(raw);
   if (!validation.valid) {
     const reason = `Antigravity generic credential '${target}' contains invalid OAuth token data: ${validation.error}`;
+    return failPreflight(reason, target, logPath, consoleError, exitFn);
+  }
+
+  const expiryCheck = checkTokenExpiry(validation.token.expiry, now, expiryBufferMs);
+  if (!expiryCheck.valid) {
+    const reason = `Antigravity generic credential '${target}' has an invalid or expiring OAuth token: ${expiryCheck.error}`;
     return failPreflight(reason, target, logPath, consoleError, exitFn);
   }
 
