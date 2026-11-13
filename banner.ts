@@ -27,14 +27,20 @@ export interface PreRunConfig {
   issueLabel: string;
   models: PhaseModels;
   mode: ExecutionMode;
+  concurrency: number;
+  implementerEffort: "low" | "medium" | "high";
 }
 
 const DEFAULT_AGENT_MODEL = "gemini-3.8-flash-high";
 const DEFAULT_ISSUE_LABEL = "ready-for-agent";
 export const DEFAULT_EXECUTION_MODE: ExecutionMode = "automatic";
+export const DEFAULT_PARALLEL_CONCURRENCY = 3;
+export const DEFAULT_IMPLEMENTER_EFFORT = "low";
 
 export interface ResolvePreRunConfigOptions {
   readonly mode?: ExecutionMode;
+  readonly concurrency?: number;
+  readonly implementerEffort?: "low" | "medium" | "high";
 }
 
 /**
@@ -82,6 +88,30 @@ export function resolvePreRunConfig(
 
   const mode: ExecutionMode = explicitMode ?? envMode ?? DEFAULT_EXECUTION_MODE;
 
+  // Resolve Concurrency (options > SANDCASTLE_CONCURRENCY > default 3)
+  const explicitConcurrency = typeof options === "object" ? options?.concurrency : undefined;
+  let concurrency = DEFAULT_PARALLEL_CONCURRENCY;
+  if (explicitConcurrency !== undefined && Number.isInteger(explicitConcurrency) && explicitConcurrency > 0) {
+    concurrency = explicitConcurrency;
+  } else if (env.SANDCASTLE_CONCURRENCY !== undefined && env.SANDCASTLE_CONCURRENCY.trim() !== "") {
+    const envVal = Number(env.SANDCASTLE_CONCURRENCY.trim());
+    if (Number.isInteger(envVal) && envVal > 0) {
+      concurrency = envVal;
+    }
+  }
+
+  // Resolve Implementer Effort (options > IMPLEMENTER_EFFORT > default "low")
+  const explicitEffort = typeof options === "object" ? options?.implementerEffort : undefined;
+  let implementerEffort: "low" | "medium" | "high" = DEFAULT_IMPLEMENTER_EFFORT;
+  if (explicitEffort === "low" || explicitEffort === "medium" || explicitEffort === "high") {
+    implementerEffort = explicitEffort;
+  } else if (env.IMPLEMENTER_EFFORT !== undefined && env.IMPLEMENTER_EFFORT.trim() !== "") {
+    const rawEffort = env.IMPLEMENTER_EFFORT.trim().toLowerCase();
+    if (rawEffort === "low" || rawEffort === "medium" || rawEffort === "high") {
+      implementerEffort = rawEffort;
+    }
+  }
+
   return {
     targetRepoPath: targetConfig.targetRepoPath,
     baseBranch,
@@ -104,6 +134,8 @@ export function resolvePreRunConfig(
       merger: mergerModel,
     },
     mode,
+    concurrency,
+    implementerEffort,
   };
 }
 
@@ -142,6 +174,8 @@ export function formatPreRunSummary(config: PreRunConfig): string {
     `Verification Command   : ${verifyCmdStr}`,
     `Issue Label filter     : ${config.issueLabel}`,
     `Execution Mode         : ${modeStr}`,
+    `Parallel Concurrency   : ${config.concurrency}`,
+    `Implementer Effort     : ${config.implementerEffort}`,
     `Models assigned per phase:`,
     `  • Planner: ${config.models.planner}`,
     `  • Implementer: ${config.models.implementer}`,
@@ -331,6 +365,16 @@ export async function runPreRunConfigurationBanner(
             hint: formatExecutionMode(currentConfig.mode),
           },
           {
+            value: "concurrency",
+            label: "Parallel Concurrency",
+            hint: String(currentConfig.concurrency),
+          },
+          {
+            value: "implementerEffort",
+            label: "Implementer Effort",
+            hint: currentConfig.implementerEffort,
+          },
+          {
             value: "models",
             label: "Phase Models",
             hint: `Planner: ${currentConfig.models.planner}...`,
@@ -471,6 +515,55 @@ export async function runPreRunConfigurationBanner(
 
         if (modeChoice === "automatic" || modeChoice === "interactive") {
           currentConfig.mode = modeChoice;
+        }
+      } else if (field === "concurrency" || field === "parallelConcurrency") {
+        const val = await prompts.text({
+          message: "Enter Parallel Concurrency limit (positive integer):",
+          initialValue: String(currentConfig.concurrency),
+          defaultValue: String(currentConfig.concurrency),
+        });
+        if (prompts.isCancel(val)) {
+          prompts.cancel("Execution aborted by operator. Zero changes applied.");
+          if (options.onCancel) options.onCancel();
+          return { action: "cancel", config: currentConfig };
+        }
+        if (typeof val === "string") {
+          const parsed = Number(val.trim());
+          if (Number.isInteger(parsed) && parsed > 0) {
+            currentConfig.concurrency = parsed;
+          }
+        }
+      } else if (field === "implementerEffort") {
+        const effortChoice = await prompts.select({
+          message: "Select Implementer Reasoning Effort:",
+          options: [
+            {
+              value: "low",
+              label: "low (default)",
+              hint: "Minimal thinking tokens, safe burst prevention",
+            },
+            {
+              value: "medium",
+              label: "medium",
+              hint: "Balanced reasoning effort",
+            },
+            {
+              value: "high",
+              label: "high",
+              hint: "Exhaustive reasoning effort (quota heavy)",
+            },
+          ],
+          initialValue: currentConfig.implementerEffort,
+        });
+
+        if (prompts.isCancel(effortChoice)) {
+          prompts.cancel("Execution aborted by operator. Zero changes applied.");
+          if (options.onCancel) options.onCancel();
+          return { action: "cancel", config: currentConfig };
+        }
+
+        if (effortChoice === "low" || effortChoice === "medium" || effortChoice === "high") {
+          currentConfig.implementerEffort = effortChoice;
         }
       } else if (field === "models") {
         const phase = await prompts.select({

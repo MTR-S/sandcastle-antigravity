@@ -100,6 +100,7 @@ const baseBranch = process.env.BASE_BRANCH ?? process.env.TARGET_BRANCH ?? targe
 
 const initialPreRunConfig = resolvePreRunConfig(targetConfig, process.env, {
   mode: parsedCli.mode,
+  concurrency: parsedCli.concurrency,
 });
 const bannerResult = await runPreRunConfigurationBanner({
   config: initialPreRunConfig,

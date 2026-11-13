@@ -1003,4 +1003,119 @@ describe("Standalone CLI Entrypoint & Operations Subcommands (Issue #10)", () =>
       assert.equal(options[2].value, "stop");
     });
   });
+
+  describe("Seam: Concurrency & Stagger Delay Configuration (Issue #35)", () => {
+    test("parses default concurrency (3) and stagger delay (8) when no flags or env vars are provided", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run"], {});
+      assert.equal(parsed.concurrency, 3);
+      assert.equal(parsed.staggerDelay, 8);
+    });
+
+    test("parses --concurrency and -c flags overriding defaults", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsedLong = parseCliArgs(["run", "--concurrency", "5"]);
+      assert.equal(parsedLong.concurrency, 5);
+
+      const parsedShort = parseCliArgs(["run", "-c", "2"]);
+      assert.equal(parsedShort.concurrency, 2);
+
+      const parsedInline = parseCliArgs(["run", "--concurrency=4"]);
+      assert.equal(parsedInline.concurrency, 4);
+    });
+
+    test("parses --stagger-delay flag overriding defaults", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "--stagger-delay", "12"]);
+      assert.equal(parsed.staggerDelay, 12);
+
+      const parsedInline = parseCliArgs(["run", "--stagger-delay=15"]);
+      assert.equal(parsedInline.staggerDelay, 15);
+    });
+
+    test("resolves environment variables SANDCASTLE_CONCURRENCY and SANDCASTLE_STAGGER_DELAY", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run"], {
+        SANDCASTLE_CONCURRENCY: "4",
+        SANDCASTLE_STAGGER_DELAY: "10",
+      });
+      assert.equal(parsed.concurrency, 4);
+      assert.equal(parsed.staggerDelay, 10);
+    });
+
+    test("CLI flags take precedence over environment variables", async () => {
+      const { parseCliArgs } = await import("./cli.ts");
+      const parsed = parseCliArgs(["run", "-c", "6", "--stagger-delay", "5"], {
+        SANDCASTLE_CONCURRENCY: "2",
+        SANDCASTLE_STAGGER_DELAY: "20",
+      });
+      assert.equal(parsed.concurrency, 6);
+      assert.equal(parsed.staggerDelay, 5);
+    });
+
+    test("validates concurrency must be a positive integer", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+      
+      const parsedZero = parseCliArgs(["run", "--concurrency", "0"]);
+      const resZero = validateCliArgs(parsedZero);
+      assert.equal(resZero.valid, false);
+      assert.match(resZero.error ?? "", /concurrency/i);
+
+      const parsedNegative = parseCliArgs(["run", "-c", "-2"]);
+      const resNegative = validateCliArgs(parsedNegative);
+      assert.equal(resNegative.valid, false);
+      assert.match(resNegative.error ?? "", /concurrency/i);
+
+      const parsedInvalid = parseCliArgs(["run", "--concurrency", "abc"]);
+      const resInvalid = validateCliArgs(parsedInvalid);
+      assert.equal(resInvalid.valid, false);
+      assert.match(resInvalid.error ?? "", /concurrency/i);
+    });
+
+    test("validates stagger-delay must be a positive integer", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+      
+      const parsedZero = parseCliArgs(["run", "--stagger-delay", "0"]);
+      const resZero = validateCliArgs(parsedZero);
+      assert.equal(resZero.valid, false);
+      assert.match(resZero.error ?? "", /stagger/i);
+
+      const parsedNegative = parseCliArgs(["run", "--stagger-delay", "-5"]);
+      const resNegative = validateCliArgs(parsedNegative);
+      assert.equal(resNegative.valid, false);
+      assert.match(resNegative.error ?? "", /stagger/i);
+
+      const parsedInvalid = parseCliArgs(["run", "--stagger-delay", "notanumber"]);
+      const resInvalid = validateCliArgs(parsedInvalid);
+      assert.equal(resInvalid.valid, false);
+      assert.match(resInvalid.error ?? "", /stagger/i);
+    });
+
+    test("flags missing required arguments set invalidArgError", async () => {
+      const { parseCliArgs, validateCliArgs } = await import("./cli.ts");
+
+      const parsedMissingC = parseCliArgs(["run", "--concurrency"]);
+      assert.equal(validateCliArgs(parsedMissingC).valid, false);
+
+      const parsedMissingStagger = parseCliArgs(["run", "--stagger-delay"]);
+      assert.equal(validateCliArgs(parsedMissingStagger).valid, false);
+    });
+
+    test("dispatchCli exits with code 1 and error message on invalid concurrency or stagger-delay", async () => {
+      const { dispatchCli } = await import("./cli.ts");
+      const errorLogs: string[] = [];
+
+      const exitCode1 = await dispatchCli(["run", "--concurrency", "invalid"], {
+        errorLogger: (msg) => errorLogs.push(msg),
+      });
+      assert.equal(exitCode1, 1);
+      assert.ok(errorLogs.some((l) => /concurrency/i.test(l)));
+
+      const exitCode2 = await dispatchCli(["run", "--stagger-delay", "0"], {
+        errorLogger: (msg) => errorLogs.push(msg),
+      });
+      assert.equal(exitCode2, 1);
+      assert.ok(errorLogs.some((l) => /stagger/i.test(l)));
+    });
+  });
 });

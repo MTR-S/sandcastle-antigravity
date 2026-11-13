@@ -89,27 +89,43 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
 
       assert.equal(config.mode, "automatic");
       assert.equal(config.issueLabel, "ready-for-agent");
+      assert.equal(config.concurrency, 3);
+      assert.equal(config.implementerEffort, "low");
       assert.equal(config.models.planner, "gemini-3.8-flash-high");
       assert.equal(config.models.implementer, "gemini-3.8-flash-high");
       assert.equal(config.models.reviewer, "gemini-3.8-flash-high");
       assert.equal(config.models.merger, "gemini-3.8-flash-high");
     });
 
-    test("resolves execution mode override from options or environment variables", () => {
+    test("resolves execution mode, concurrency, and implementer effort overrides from options or environment", () => {
       assert.equal(DEFAULT_EXECUTION_MODE, "automatic");
       assert.equal(formatExecutionMode("automatic"), "automatic (default)");
       assert.equal(formatExecutionMode("interactive"), "interactive");
 
-      const configFromOptions = resolvePreRunConfig(dummyTargetConfig, {}, { mode: "interactive" });
-      assert.equal(configFromOptions.mode, "interactive");
+      const configFromEnv = resolvePreRunConfig(dummyTargetConfig, {
+        SANDCASTLE_CONCURRENCY: "5",
+        IMPLEMENTER_EFFORT: "medium",
+      });
+      assert.equal(configFromEnv.concurrency, 5);
+      assert.equal(configFromEnv.implementerEffort, "medium");
+
+      const configFromOptions = resolvePreRunConfig(dummyTargetConfig, {}, {
+        concurrency: 4,
+        implementerEffort: "high",
+      });
+      assert.equal(configFromOptions.concurrency, 4);
+      assert.equal(configFromOptions.implementerEffort, "high");
+
+      const configFromOptionsMode = resolvePreRunConfig(dummyTargetConfig, {}, { mode: "interactive" });
+      assert.equal(configFromOptionsMode.mode, "interactive");
 
       const configFromDirectString = resolvePreRunConfig(dummyTargetConfig, {}, "interactive");
       assert.equal(configFromDirectString.mode, "interactive");
 
-      const configFromEnv = resolvePreRunConfig(dummyTargetConfig, {
+      const configFromEnvMode = resolvePreRunConfig(dummyTargetConfig, {
         EXECUTION_MODE: "interactive",
       });
-      assert.equal(configFromEnv.mode, "interactive");
+      assert.equal(configFromEnvMode.mode, "interactive");
 
       const configFromEnvCaseInsensitive = resolvePreRunConfig(dummyTargetConfig, {
         EXECUTION_MODE: "INTERACTIVE",
@@ -121,10 +137,10 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
       });
       assert.equal(configFromEnvSandcastle.mode, "interactive");
 
-      const configFromEnvMode = resolvePreRunConfig(dummyTargetConfig, {
+      const configFromEnvModeOnly = resolvePreRunConfig(dummyTargetConfig, {
         MODE: "interactive",
       });
-      assert.equal(configFromEnvMode.mode, "interactive");
+      assert.equal(configFromEnvModeOnly.mode, "interactive");
     });
 
     test("formats inspection summary containing all 8 parameters", () => {
@@ -150,6 +166,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
           merger: "gemini-4-pro",
         },
         mode: "automatic",
+        concurrency: 3,
+        implementerEffort: "low",
       };
 
       const summary = formatPreRunSummary(config);
@@ -162,6 +180,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
       assert.match(summary, /Verification Command.*npm test/i);
       assert.match(summary, /Issue Label.*ready-for-agent/i);
       assert.match(summary, /Execution Mode.*automatic \(default\)/i);
+      assert.match(summary, /Parallel Concurrency\s*:\s*3/i);
+      assert.match(summary, /Implementer Effort\s*:\s*low/i);
       assert.match(
         summary,
         /Models assigned per phase[\s\S]*Planner:\s*gemini-4-pro[\s\S]*Implementer:\s*gemini-3.8-flash-high[\s\S]*Reviewer:\s*gemini-3.8-flash-high[\s\S]*Merger:\s*gemini-4-pro/i,
@@ -184,6 +204,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
           merger: "gemini-4-pro",
         },
         mode: "interactive",
+        concurrency: 3,
+        implementerEffort: "low",
       };
 
       const summary = formatPreRunSummary(config);
@@ -209,6 +231,8 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
           merger: "gemini-3.8-flash-high",
         },
         mode: "automatic",
+        concurrency: 3,
+        implementerEffort: "low",
       };
 
       const summary = formatPreRunSummary(config);
@@ -637,6 +661,46 @@ describe("Interactive Pre-Run Configuration Banner & Defaults Editor (Issue #9)"
 
       assert.equal(result.action, "cancel");
       assert.equal(cancelCallbackInvoked, true);
+    });
+
+    test("allows overriding Parallel Concurrency via text prompt and reflects the update", async () => {
+      const config = resolvePreRunConfig(dummyTargetConfig);
+      assert.equal(config.concurrency, 3);
+
+      const selectCalls = ["edit", "concurrency", "confirm"];
+      const textCalls = ["5"];
+
+      const promptAdapter = createMockPromptAdapter({
+        select: async () => selectCalls.shift() ?? "confirm",
+        text: async () => textCalls.shift() ?? "",
+      });
+
+      const result = await runPreRunConfigurationBanner({
+        config,
+        promptAdapter,
+      });
+
+      assert.equal(result.action, "start");
+      assert.equal(result.config.concurrency, 5);
+    });
+
+    test("allows overriding Implementer Effort via select prompt and reflects the update", async () => {
+      const config = resolvePreRunConfig(dummyTargetConfig);
+      assert.equal(config.implementerEffort, "low");
+
+      const selectCalls = ["edit", "implementerEffort", "medium", "confirm"];
+
+      const promptAdapter = createMockPromptAdapter({
+        select: async () => selectCalls.shift() ?? "confirm",
+      });
+
+      const result = await runPreRunConfigurationBanner({
+        config,
+        promptAdapter,
+      });
+
+      assert.equal(result.action, "start");
+      assert.equal(result.config.implementerEffort, "medium");
     });
   });
 

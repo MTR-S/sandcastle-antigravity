@@ -157,6 +157,9 @@ export const DEFAULT_CLI_EXECUTION_MODE: ExecutionMode = "automatic";
 export const CLI_INTERACTIVE_PRECEDENCE_WARNING =
   "--yes flag takes precedence over interactive mode. Running in automatic mode.";
 
+export const DEFAULT_CONCURRENCY = 3;
+export const DEFAULT_STAGGER_DELAY = 8;
+
 export type CliCommand =
   | "run"
   | "rescue"
@@ -173,6 +176,8 @@ export interface CliParsedArgs {
   readonly mode: ExecutionMode;
   readonly tag?: string;
   readonly buildArgs?: readonly string[];
+  readonly concurrency?: number;
+  readonly staggerDelay?: number;
   readonly unknownCommand?: string;
   readonly invalidArgError?: string;
   readonly warning?: string;
@@ -187,6 +192,8 @@ export const CliParsedArgsSchema = z.object({
   mode: ExecutionModeSchema.default(DEFAULT_CLI_EXECUTION_MODE),
   tag: z.string().optional(),
   buildArgs: z.array(z.string()).optional(),
+  concurrency: z.number().int().positive().optional(),
+  staggerDelay: z.number().int().positive().optional(),
   unknownCommand: z.string().optional(),
   invalidArgError: z.string().optional(),
   warning: z.string().optional(),
@@ -280,7 +287,10 @@ function isCliBinaryOrScript(arg: string): boolean {
 /**
  * Parses raw command-line arguments into a structured CliParsedArgs object.
  */
-export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
+export function parseCliArgs(
+  argv: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): CliParsedArgs {
   // Strip node / tsx runtime and binary alias / entrypoint script if present
   let args = [...argv];
   if (args.length > 0 && isRuntimeBinary(args[0])) {
@@ -296,6 +306,8 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
       command: "help",
       yes: false,
       mode: DEFAULT_CLI_EXECUTION_MODE,
+      concurrency: DEFAULT_CONCURRENCY,
+      staggerDelay: DEFAULT_STAGGER_DELAY,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -305,6 +317,8 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
       command: "version",
       yes: false,
       mode: DEFAULT_CLI_EXECUTION_MODE,
+      concurrency: DEFAULT_CONCURRENCY,
+      staggerDelay: DEFAULT_STAGGER_DELAY,
       rawArgs: Object.freeze(argv),
     };
   }
@@ -317,6 +331,8 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
   let explicitMode: ExecutionMode | undefined;
   let tag: string | undefined;
   let buildArgs: string[] = [];
+  let explicitConcurrency: number | undefined;
+  let explicitStaggerDelay: number | undefined;
   let invalidArgError: string | undefined;
 
   let i = 0;
@@ -329,6 +345,48 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
       } else {
         repoPath = args[i + 1];
         i += 2;
+      }
+    } else if (arg === "--concurrency" || arg === "-c" || arg.startsWith("--concurrency=")) {
+      let concVal: string | undefined;
+      if (arg.startsWith("--concurrency=")) {
+        concVal = arg.slice("--concurrency=".length);
+        i++;
+      } else if (i + 1 >= args.length || (args[i + 1].startsWith("-") && !/^-?\d+$/.test(args[i + 1]))) {
+        invalidArgError = `Option "${arg}" requires a positive integer argument for concurrency.`;
+        i++;
+      } else {
+        concVal = args[i + 1];
+        i += 2;
+      }
+
+      if (concVal !== undefined) {
+        const parsed = Number(concVal);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          invalidArgError = `Option "${arg}" requires a positive integer for concurrency. Received: "${concVal}".`;
+        } else {
+          explicitConcurrency = parsed;
+        }
+      }
+    } else if (arg === "--stagger-delay" || arg.startsWith("--stagger-delay=")) {
+      let delayVal: string | undefined;
+      if (arg.startsWith("--stagger-delay=")) {
+        delayVal = arg.slice("--stagger-delay=".length);
+        i++;
+      } else if (i + 1 >= args.length || (args[i + 1].startsWith("-") && !/^-?\d+$/.test(args[i + 1]))) {
+        invalidArgError = `Option "${arg}" requires a positive integer argument (seconds) for stagger-delay.`;
+        i++;
+      } else {
+        delayVal = args[i + 1];
+        i += 2;
+      }
+
+      if (delayVal !== undefined) {
+        const parsed = Number(delayVal);
+        if (!Number.isInteger(parsed) || parsed <= 0) {
+          invalidArgError = `Option "${arg}" requires a positive integer (seconds) for stagger-delay. Received: "${delayVal}".`;
+        } else {
+          explicitStaggerDelay = parsed;
+        }
       }
     } else if (arg === "--yes" || arg === "-y") {
       yes = true;
@@ -413,6 +471,32 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     mode = "interactive";
   }
 
+  // Resolve concurrency with precedence: CLI flag > env var > default (3)
+  let concurrency = DEFAULT_CONCURRENCY;
+  if (explicitConcurrency !== undefined) {
+    concurrency = explicitConcurrency;
+  } else if (env.SANDCASTLE_CONCURRENCY !== undefined && env.SANDCASTLE_CONCURRENCY.trim() !== "") {
+    const envVal = Number(env.SANDCASTLE_CONCURRENCY.trim());
+    if (Number.isInteger(envVal) && envVal > 0) {
+      concurrency = envVal;
+    } else if (!invalidArgError) {
+      invalidArgError = `Environment variable SANDCASTLE_CONCURRENCY must be a positive integer. Received: "${env.SANDCASTLE_CONCURRENCY}".`;
+    }
+  }
+
+  // Resolve stagger delay with precedence: CLI flag > env var > default (8)
+  let staggerDelay = DEFAULT_STAGGER_DELAY;
+  if (explicitStaggerDelay !== undefined) {
+    staggerDelay = explicitStaggerDelay;
+  } else if (env.SANDCASTLE_STAGGER_DELAY !== undefined && env.SANDCASTLE_STAGGER_DELAY.trim() !== "") {
+    const envVal = Number(env.SANDCASTLE_STAGGER_DELAY.trim());
+    if (Number.isInteger(envVal) && envVal > 0) {
+      staggerDelay = envVal;
+    } else if (!invalidArgError) {
+      invalidArgError = `Environment variable SANDCASTLE_STAGGER_DELAY must be a positive integer (seconds). Received: "${env.SANDCASTLE_STAGGER_DELAY}".`;
+    }
+  }
+
   return {
     command,
     repoPath,
@@ -420,6 +504,8 @@ export function parseCliArgs(argv: readonly string[]): CliParsedArgs {
     mode,
     tag,
     buildArgs: buildArgs.length > 0 ? Object.freeze(buildArgs) : undefined,
+    concurrency,
+    staggerDelay,
     unknownCommand,
     invalidArgError,
     warning,
@@ -443,13 +529,15 @@ export function formatCliHelp(): string {
     "  help         Show this help message",
     "",
     "Options:",
-    "  --repo, -r <path>  Target repository path (default: current directory)",
-    "  --yes, -y          Skip interactive confirmation banner (non-interactive mode)",
-    "  --interactive, -i  Run orchestrator in interactive mode with post-iteration checkpoints",
-    "  --mode <mode>      Execution mode: automatic (or auto) | interactive (default: automatic)",
-    "  --tag, -t <tag>    Docker image tag for build-image (default: sandcastle-agent)",
-    "  --help, -h         Show help message",
-    "  --version, -v      Show version number",
+    "  --repo, -r <path>       Target repository path (default: current directory)",
+    "  --concurrency, -c <N>   Parallel issue concurrency cap in Phase 2 (default: 3)",
+    "  --stagger-delay <sec>   Stagger delay between parallel worker starts in seconds (default: 8)",
+    "  --yes, -y               Skip interactive confirmation banner (non-interactive mode)",
+    "  --interactive, -i       Run orchestrator in interactive mode with post-iteration checkpoints",
+    "  --mode <mode>           Execution mode: automatic (or auto) | interactive (default: automatic)",
+    "  --tag, -t <tag>         Docker image tag for build-image (default: sandcastle-agent)",
+    "  --help, -h              Show help message",
+    "  --version, -v           Show version number",
   ].join("\n");
 }
 
