@@ -480,4 +480,62 @@ describe("Phase 2 Dynamic Worker Pool with Stagger Delay (Issue #38)", () => {
       assert.equal(completeEvents[1]?.status, "fulfilled");
     });
   });
+
+  describe("Seam 7: Orchestrator main.mts Integration (Issue #39)", () => {
+    test("main.mts imports executePhase2WithWorkerPool from worker-pool.ts", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      const mainPath = resolve(process.cwd(), "main.mts");
+      const content = readFileSync(mainPath, "utf-8");
+
+      assert.match(
+        content,
+        /import\s+\{[^}]*executePhase2WithWorkerPool[^}]*\}\s+from\s+["']\.\/(?:worker-pool|cli)(?:\.ts)?["']/,
+        "main.mts must import executePhase2WithWorkerPool",
+      );
+    });
+
+    test("main.mts invokes executePhase2WithWorkerPool with configured concurrency and staggerDelay in Phase 2", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      const mainPath = resolve(process.cwd(), "main.mts");
+      const content = readFileSync(mainPath, "utf-8");
+
+      assert.match(
+        content,
+        /executePhase2WithWorkerPool<sandcastle\.SandboxRunResult>\(\{[\s\S]*?issues[\s\S]*?concurrency:\s*activeConfig\.concurrency[\s\S]*?staggerDelay:\s*parsedCli\.staggerDelay[\s\S]*?taskRunner:/m,
+        "main.mts must dispatch Phase 2 through executePhase2WithWorkerPool with activeConfig.concurrency and parsedCli.staggerDelay",
+      );
+    });
+
+    test("main.mts configures Implementer agent with effort: 'low' and maxIterations: 100", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      const mainPath = resolve(process.cwd(), "main.mts");
+      const content = readFileSync(mainPath, "utf-8");
+
+      assert.match(
+        content,
+        /name:\s*["']implementer["'][\s\S]*?maxIterations:\s*100[\s\S]*?createAgent\(\s*implementerModel,\s*\{[\s\S]*?effort:\s*["']low["'][\s\S]*?mode:\s*["']accept-edits["']/m,
+        "Implementer in main.mts must run with maxIterations: 100 and effort: 'low'",
+      );
+    });
+
+    test("main.mts retains atomic Phase 3 Merge step after worker pool execution", async () => {
+      const { readFileSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      const mainPath = resolve(process.cwd(), "main.mts");
+      const content = readFileSync(mainPath, "utf-8");
+
+      const poolIndex = content.lastIndexOf("executePhase2WithWorkerPool");
+      const phase2SummaryIndex = content.lastIndexOf("formatPhase2ExecutionSummary");
+      const mergerIndex = content.lastIndexOf('name: "merger"');
+      const phase3SummaryIndex = content.lastIndexOf("formatPhase3MergeSummary");
+
+      assert.ok(poolIndex !== -1, "executePhase2WithWorkerPool must be present in main.mts");
+      assert.ok(phase2SummaryIndex > poolIndex, "Phase 2 execution summary must occur after worker pool");
+      assert.ok(mergerIndex > phase2SummaryIndex, "Phase 3 merger must occur strictly after Phase 2 execution summary");
+      assert.ok(phase3SummaryIndex > mergerIndex, "Phase 3 merge summary must occur after merger");
+    });
+  });
 });

@@ -56,6 +56,11 @@ import {
   formatIterationLimitNotificationMessage,
 } from "./notifications.ts";
 import { handleIterationCheckpoint } from "./checkpoint.ts";
+import {
+  executePhase2WithWorkerPool,
+  type WorkerPoolIssue,
+  type WorkerTaskOutcome,
+} from "./worker-pool.ts";
 
 // ---------------------------------------------------------------------------
 // CLI Argument Parsing & Operations Dispatch (Issue #10)
@@ -328,15 +333,17 @@ try {
   // -------------------------------------------------------------------------
   // Phase 2: Execute + Review
   //
-  // For each issue, create a sandbox via createSandbox() so the implementer
-  // and reviewer share the same sandbox instance per branch. The implementer
-  // runs first; if it produces commits, the reviewer runs in the same sandbox.
-  //
-  // Promise.allSettled means one failing pipeline doesn't cancel the others.
+  // For each issue, a dynamic worker pool manages concurrent execution
+  // respecting the concurrency cap and stagger delay. The implementer runs
+  // first (effort: "low", maxIterations: 100). If it produces commits, the
+  // reviewer runs in the same sandbox on the same branch (1 iteration).
   // -------------------------------------------------------------------------
 
-  const settled = await Promise.allSettled(
-    issues.map(async (issue: PlannedIssue) => {
+  const poolResult = await executePhase2WithWorkerPool<sandcastle.SandboxRunResult>({
+    issues,
+    concurrency: activeConfig.concurrency,
+    staggerDelay: parsedCli.staggerDelay,
+    taskRunner: async (issue: PlannedIssue) => {
       const sandbox = await sandcastle.createSandbox({
         cwd: repoRoot,
         branch: issue.branch,
@@ -345,12 +352,12 @@ try {
       });
 
       try {
-        // Run the implementer
+        // Run the implementer (Issue #36 / Issue #39: effort "low")
         const implement = await sandbox.run({
           name: "implementer",
           maxIterations: 100,
           agent: createAgent(implementerModel, {
-            effort: "high",
+            effort: "low",
             mode: "accept-edits",
           }),
           promptFile: resolvePromptFile("implement-prompt.md", repoRoot),
@@ -395,33 +402,28 @@ try {
       } finally {
         await sandbox.close();
       }
-    }),
-  );
+    },
+  });
 
   // Log any agents that threw (network error, sandbox crash, etc.).
-  for (const [i, outcome] of settled.entries()) {
+  for (const outcome of poolResult.outcomes) {
     if (outcome.status === "rejected") {
       console.error(
-        `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${outcome.reason}`,
+        `  ✗ ${outcome.issue.id} (${outcome.issue.branch}) failed: ${outcome.reason}`,
       );
     }
   }
 
   // Only pass branches that actually produced commits to the merge phase.
   // An agent that ran successfully but made no commits has nothing to merge.
-  const completedIssues = settled
-    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
+  const completedIssues = poolResult.outcomes
     .filter(
       (
-        entry,
-      ): entry is {
-        outcome: PromiseFulfilledResult<sandcastle.SandboxRunResult>;
-        issue: PlannedIssue;
-      } =>
-        entry.outcome.status === "fulfilled" &&
-        entry.outcome.value.commits.length > 0,
+        outcome,
+      ): outcome is Extract<WorkerTaskOutcome<sandcastle.SandboxRunResult>, { status: "fulfilled" }> =>
+        outcome.status === "fulfilled" && outcome.value.commits.length > 0,
     )
-    .map((entry) => entry.issue);
+    .map((outcome) => outcome.issue as PlannedIssue);
 
   const completedBranches = completedIssues.map((i: PlannedIssue) => i.branch);
 
