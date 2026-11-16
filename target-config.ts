@@ -5,7 +5,7 @@ import { getSandboxMounts, type DockerMount } from "./docker-config.ts";
 
 export type { DockerMount };
 
-export type TechStack = "maven" | "gradle" | "node" | "unknown";
+export type TechStack = "maven" | "gradle" | "node" | "python" | "unknown";
 
 export const DEFAULT_PROTECTED_BRANCHES: readonly string[] = [
   "main",
@@ -389,6 +389,16 @@ export function detectTechStack(
     return "node";
   }
 
+  // Check Python: pytest.ini, pyproject.toml, requirements.txt, or setup.py
+  if (
+    fileExists(join(repoPath, "pytest.ini")) ||
+    fileExists(join(repoPath, "pyproject.toml")) ||
+    fileExists(join(repoPath, "requirements.txt")) ||
+    fileExists(join(repoPath, "setup.py"))
+  ) {
+    return "python";
+  }
+
   return "unknown";
 }
 
@@ -411,6 +421,8 @@ export function resolveVerifyCommand(
       return "./gradlew test";
     case "node":
       return "npm test";
+    case "python":
+      return "pytest";
     case "unknown":
     default:
       return "";

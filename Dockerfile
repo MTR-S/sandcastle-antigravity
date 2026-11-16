@@ -2,7 +2,7 @@ FROM node:22-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies and Eclipse Temurin OpenJDK 21
+# Install system dependencies, Eclipse Temurin OpenJDK 21, and Python environment
 RUN apt-get update && apt-get install -y --no-install-recommends \
   git \
   curl \
@@ -22,7 +22,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   dbus-x11 \
   gnome-keyring \
   libsecret-tools \
+  python3 \
+  python3-pip \
+  python3-venv \
+  python3-dev \
+  build-essential \
   && rm -rf /var/lib/apt/lists/*
+
+# Pre-install Python test & automation packages and Playwright Chromium with system dependencies
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN pip3 install --no-cache-dir --break-system-packages \
+  pytest \
+  playwright \
+  pypdf \
+  google-genai \
+  && mkdir -p /opt/ms-playwright \
+  && python3 -m playwright install --with-deps chromium \
+  && chmod -R 777 /opt/ms-playwright
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

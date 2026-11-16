@@ -99,6 +99,17 @@ describe("Target Repository Autodetection Engine (Issue #7)", () => {
       assert.equal(cmd, "npm test");
     });
 
+    test("autodetects Python project when pytest.ini exists", () => {
+      const files = new Set(["/repo/pytest.ini"]);
+      const fileExists = (path: string) => files.has(path.replace(/\\/g, "/"));
+
+      const stack = detectTechStack("/repo", fileExists);
+      assert.equal(stack, "python");
+
+      const cmd = resolveVerifyCommand(stack);
+      assert.equal(cmd, "pytest");
+    });
+
     test("returns unknown and empty verify command when no stack markers are present", () => {
       const files = new Set<string>();
       const fileExists = (path: string) => files.has(path.replace(/\\/g, "/"));
